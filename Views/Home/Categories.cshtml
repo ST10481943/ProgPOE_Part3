@@ -1,0 +1,376 @@
+﻿@using System.Data.SqlClient
+@using API_template.backend
+
+@{
+    ViewData["Title"] = "Categories";
+    Layout = null;
+
+    var userName = Context.Session.GetString("user_name") ?? "";
+    var userId = Context.Session.GetString("user_id") ?? "0";
+    int organizer_id = Int32.Parse(userId);
+
+    manage_categories categories_manager = new manage_categories();
+
+    string errorMsg = "";
+
+    if (Context.Request.Method == "POST")
+    {
+        string action = Context.Request.Form["formAction"].ToString().Trim();
+
+        if (action == "add")
+        {
+            string name = Context.Request.Form["categoryName"].ToString().Trim();
+            string description = Context.Request.Form["categoryDescription"].ToString().Trim();
+
+            if (string.IsNullOrEmpty(name))
+            {
+                errorMsg = "Category name is required.";
+            }
+            else
+            {
+                
+                string result = categories_manager.store_categorySite(name, description, organizer_id);
+
+                if (result.StartsWith("Category successfully"))
+                {
+                    Context.Response.Redirect("/Home/Categories");
+                    return;
+                }
+
+                errorMsg = result;
+            }
+        }
+        else if (action == "edit")
+        {
+            int id = Convert.ToInt32(Context.Request.Form["categoryId"]);
+            string name = Context.Request.Form["categoryName"].ToString().Trim();
+            string description = Context.Request.Form["categoryDescription"].ToString().Trim();
+
+            if (string.IsNullOrEmpty(name))
+            {
+                errorMsg = "Category name is required.";
+            }
+            else
+            {
+               
+                string result = categories_manager.updating_categoriesSite(id, name, description,""+ organizer_id,"both");
+
+                if (result.StartsWith("Category successfully"))
+                {
+                    Context.Response.Redirect("/Home/Categories");
+                    return;
+                }
+
+                errorMsg = result;
+            }
+        }
+        else if (action == "delete")
+        {
+            int id = Convert.ToInt32(Context.Request.Form["categoryId"]);
+
+            
+            string result = categories_manager.deleting_categoriesSite(id, ""+organizer_id);
+
+            if (result.StartsWith("Category successfully"))
+            {
+                Context.Response.Redirect("/Home/Categories");
+                return;
+            }
+
+            errorMsg = result;
+        }
+    }
+
+    var myCategories = new List<Dictionary<string, object>>();
+
+    SqlDataReader read_categories = categories_manager.view_categoriesSite(organizer_id);
+
+    try
+    {
+        while (read_categories.Read())
+        {
+            myCategories.Add(new Dictionary<string, object>
+            {
+                { "id", read_categories["id"] },
+                { "name", read_categories["name"] },
+                { "description", read_categories["description"] },
+                { "organizer_id", read_categories["organizer_id"] }
+            });
+        }
+    }
+    finally
+    {
+        read_categories.Close();
+    }
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+
+    <div class="categories">
+
+        <div class="categories_head">
+            <p class="categories_hello">Your marathons</p>
+            <h1 class="categories_title">Categories</h1>
+            <p class="categories_subtitle">Groups inside your marathons, like 10km, 21km, or 42km. Participants pick one when they join.</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMsg))
+        {
+            <div class="categories_alert categories_alert_error">
+                <i class="fa fa-exclamation-circle"></i>
+                <span>@errorMsg</span>
+            </div>
+        }
+
+        <div class="categories_bar">
+            <div class="categories_bar_left">
+                <span class="categories_bar_count">@myCategories.Count</span>
+                <span class="categories_bar_label">categor@(myCategories.Count == 1 ? "y" : "ies")</span>
+            </div>
+            <button type="button" class="categories_bar_btn" id="openCategoryModal">
+                <i class="fa fa-plus"></i>
+                <span>Add category</span>
+            </button>
+        </div>
+
+        @if (myCategories.Count == 0)
+        {
+            <div class="categories_empty">
+                <i class="fa fa-tags"></i>
+                <p class="categories_empty_title">No categories yet</p>
+                <p class="categories_empty_text">Add your first category to start building marathons.</p>
+            </div>
+        }
+        else
+        {
+            <div class="categories_table_wrap">
+                <table class="categories_table">
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th>Description</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var c in myCategories)
+                        {
+                            <tr>
+                                <td data-label="Category">
+                                    <div class="categories_cell">
+                                        <span class="categories_cell_icon"><i class="fa fa-tags"></i></span>
+                                        <span class="categories_cell_name">@c["name"]</span>
+                                    </div>
+                                </td>
+                                <td data-label="Description" class="categories_cell_desc">@c["description"]</td>
+                                <td data-label="Actions">
+                                    <div class="categories_actions">
+                                        <button type="button"
+                                                class="categories_action_btn categories_action_edit"
+                                                data-id="@c["id"]"
+                                                data-name="@c["name"]"
+                                                data-description="@c["description"]"
+                                                onclick="openEditModal(this)">
+                                            <i class="fa fa-pencil"></i>
+                                            <span>Edit</span>
+                                        </button>
+
+                                        <button type="button"
+                                                class="categories_action_btn categories_action_delete"
+                                                data-id="@c["id"]"
+                                                data-name="@c["name"]"
+                                                onclick="openDeleteModal(this)">
+                                            <i class="fa fa-trash"></i>
+                                            <span>Delete</span>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+    </div>
+
+    <div class="categories_modal" id="categoryModal">
+        <div class="categories_modal_box">
+            <div class="categories_modal_head">
+                <div>
+                    <h3 class="categories_modal_title">Add a category</h3>
+                    <p class="categories_modal_text">Give it a name and a short description so participants know what it is.</p>
+                </div>
+                <button type="button" class="categories_modal_close" id="closeCategoryModal" aria-label="Close">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+
+            <form method="post" action="/Home/Categories">
+                <input type="hidden" name="formAction" value="add">
+
+                <div class="categories_field">
+                    <label class="categories_label" for="categoryName">Category name</label>
+                    <input class="categories_input" id="categoryName" name="categoryName" type="text" placeholder="e.g. 42km" required maxlength="50">
+                </div>
+
+                <div class="categories_field">
+                    <label class="categories_label" for="categoryDescription">Description</label>
+                    <textarea class="categories_input categories_textarea" id="categoryDescription" name="categoryDescription" placeholder="What is this category about?" maxlength="255"></textarea>
+                </div>
+
+                <div class="categories_modal_actions">
+                    <button type="button" class="categories_modal_btn categories_modal_btn_light" id="cancelCategoryModal">Cancel</button>
+                    <button type="submit" class="categories_modal_btn categories_modal_btn_dark">
+                        <i class="fa fa-check"></i>
+                        <span>Add category</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="categories_modal" id="editCategoryModal">
+        <div class="categories_modal_box">
+            <div class="categories_modal_head">
+                <div>
+                    <h3 class="categories_modal_title">Edit category</h3>
+                    <p class="categories_modal_text">Update the name or description of this category.</p>
+                </div>
+                <button type="button" class="categories_modal_close" id="closeEditModal" aria-label="Close">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+
+            <form method="post" action="/Home/Categories">
+                <input type="hidden" name="formAction" value="edit">
+                <input type="hidden" name="categoryId" id="editCategoryId" value="0">
+
+                <div class="categories_field">
+                    <label class="categories_label" for="editCategoryName">Category name</label>
+                    <input class="categories_input" id="editCategoryName" name="categoryName" type="text" placeholder="e.g. Youth Runner" required maxlength="50">
+                </div>
+
+                <div class="categories_field">
+                    <label class="categories_label" for="editCategoryDescription">Description</label>
+                    <textarea class="categories_input categories_textarea" id="editCategoryDescription" name="categoryDescription" placeholder="What is this category about?" maxlength="255"></textarea>
+                </div>
+
+                <div class="categories_modal_actions">
+                    <button type="button" class="categories_modal_btn categories_modal_btn_light" id="cancelEditModal">Cancel</button>
+                    <button type="submit" class="categories_modal_btn categories_modal_btn_dark">
+                        <i class="fa fa-check"></i>
+                        <span>Save changes</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="categories_modal" id="deleteCategoryModal">
+        <div class="categories_modal_box">
+            <div class="categories_modal_head">
+                <div>
+                    <h3 class="categories_modal_title">Delete category</h3>
+                    <p class="categories_modal_text">Are you sure you want to delete this category? This action cannot be undone.</p>
+                </div>
+                <button type="button" class="categories_modal_close" id="closeDeleteModal" aria-label="Close">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+
+            <form method="post" action="/Home/Categories">
+                <input type="hidden" name="formAction" value="delete">
+                <input type="hidden" name="categoryId" id="deleteCategoryId" value="0">
+
+                <div class="categories_field">
+                    <label class="categories_label">Category name</label>
+                    <p class="categories_delete_name" id="deleteCategoryName">-</p>
+                </div>
+
+                <div class="categories_modal_actions">
+                    <button type="button" class="categories_modal_btn categories_modal_btn_light" id="cancelDeleteModal">Cancel</button>
+                    <button type="submit" class="categories_modal_btn categories_modal_btn_dark">
+                        <i class="fa fa-trash"></i>
+                        <span>Delete</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+            (function () {
+                const addModal = document.getElementById('categoryModal');
+                const editModal = document.getElementById('editCategoryModal');
+                const deleteModal = document.getElementById('deleteCategoryModal');
+
+                document.getElementById('openCategoryModal').addEventListener('click', function () {
+                    addModal.classList.add('categories_modal_open');
+                    const nameInput = document.getElementById('categoryName');
+                    if (nameInput) nameInput.focus();
+                });
+
+                document.getElementById('closeCategoryModal').addEventListener('click', function () {
+                    addModal.classList.remove('categories_modal_open');
+                });
+                document.getElementById('cancelCategoryModal').addEventListener('click', function () {
+                    addModal.classList.remove('categories_modal_open');
+                });
+
+                document.getElementById('closeEditModal').addEventListener('click', function () {
+                    editModal.classList.remove('categories_modal_open');
+                });
+                document.getElementById('cancelEditModal').addEventListener('click', function () {
+                    editModal.classList.remove('categories_modal_open');
+                });
+
+                document.getElementById('closeDeleteModal').addEventListener('click', function () {
+                    deleteModal.classList.remove('categories_modal_open');
+                });
+                document.getElementById('cancelDeleteModal').addEventListener('click', function () {
+                    deleteModal.classList.remove('categories_modal_open');
+                });
+
+                [addModal, editModal, deleteModal].forEach(function (modal) {
+                    modal.addEventListener('click', function (e) {
+                        if (e.target === modal) {
+                            modal.classList.remove('categories_modal_open');
+                        }
+                    });
+                });
+
+                document.addEventListener('keydown', function (e) {
+                    if (e.key === 'Escape') {
+                        [addModal, editModal, deleteModal].forEach(function (m) {
+                            m.classList.remove('categories_modal_open');
+                        });
+                    }
+                });
+
+                window.openEditModal = function (btn) {
+                    document.getElementById('editCategoryId').value = btn.getAttribute('data-id');
+                    document.getElementById('editCategoryName').value = btn.getAttribute('data-name');
+                    document.getElementById('editCategoryDescription').value = btn.getAttribute('data-description') || '';
+                    editModal.classList.add('categories_modal_open');
+                    document.getElementById('editCategoryName').focus();
+                };
+
+                window.openDeleteModal = function (btn) {
+                    document.getElementById('deleteCategoryId').value = btn.getAttribute('data-id');
+                    document.getElementById('deleteCategoryName').textContent = btn.getAttribute('data-name');
+                    deleteModal.classList.add('categories_modal_open');
+                };
+            })();
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,249 @@
+﻿@using System.Data.SqlClient
+@using API_template.backend
+
+@{
+    ViewData["Title"] = "Create Event";
+    Layout = null;
+
+    var userName = Context.Session.GetString("user_name") ?? "User";
+    var userId = Context.Session.GetString("user_id") ?? "0";
+    int organizer_id = Int32.Parse(userId);
+
+    manage_categories categories_manager = new manage_categories();
+
+    var myCategories = new List<Dictionary<string, object>>();
+
+    SqlDataReader read_categories = categories_manager.view_categoriesSite(organizer_id);
+
+    try
+    {
+        while (read_categories.Read())
+        {
+            myCategories.Add(new Dictionary<string, object>
+            {
+                { "id", read_categories["id"] },
+                { "name", read_categories["name"] }
+            });
+        }
+    }
+    finally
+    {
+        read_categories.Close();
+    }
+
+    string errorMsg = "";
+    string successMsg = "";
+
+    if (Context.Request.Method == "POST")
+    {
+        string eventName = Context.Request.Form["eventName"].ToString().Trim();
+        string description = Context.Request.Form["description"].ToString().Trim();
+        string date = Context.Request.Form["date"].ToString().Trim();
+        string startTime = Context.Request.Form["startTime"].ToString().Trim();
+        string location = Context.Request.Form["location"].ToString().Trim();
+        string distance = Context.Request.Form["distance"].ToString().Trim();
+        string eventType = Context.Request.Form["eventType"].ToString().Trim();
+        string age = Context.Request.Form["age"].ToString().Trim();
+        string categoryId = Context.Request.Form["categoryId"].ToString().Trim();
+
+        if (string.IsNullOrEmpty(eventName) || string.IsNullOrEmpty(date) || string.IsNullOrEmpty(startTime) ||
+            string.IsNullOrEmpty(location) || string.IsNullOrEmpty(distance) || string.IsNullOrEmpty(eventType) ||
+            string.IsNullOrEmpty(age) || string.IsNullOrEmpty(categoryId))
+        {
+            errorMsg = "All fields marked with * are required.";
+        }
+        else
+        {
+            string imagePath = "";
+
+            var imageFile = Context.Request.Form.Files["imageFile"];
+            if (imageFile != null && imageFile.Length > 0)
+            {
+                string uploadsFolder = System.IO.Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "images", "events");
+                Directory.CreateDirectory(uploadsFolder);
+
+                string uniqueName = Guid.NewGuid().ToString() + System.IO.Path.GetExtension(imageFile.FileName);
+                string filePath = System.IO.Path.Combine(uploadsFolder, uniqueName);
+
+                using (var stream = new System.IO.FileStream(filePath, System.IO.FileMode.Create))
+                {
+                    imageFile.CopyTo(stream);
+                }
+
+                imagePath = "/images/events/" + uniqueName;
+            }
+
+            manage_events manager = new manage_events();
+
+            string result = manager.store_eventSite(
+                eventName,
+                description,
+                Convert.ToDateTime(date),
+                location,
+                Convert.ToDecimal(distance),
+                eventType,
+                Convert.ToInt32(age),
+                TimeSpan.Parse(startTime),
+                Convert.ToInt32(categoryId),
+                imagePath,
+                organizer_id
+            );
+
+            if (result.StartsWith("Event is successfully"))
+            {
+                successMsg = "Event created successfully.";
+            }
+            else
+            {
+                errorMsg = result;
+            }
+        }
+    }
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+
+    <div class="create">
+
+        <div class="create_head">
+            <p class="create_hello">New event</p>
+            <h1 class="create_title">Create an event</h1>
+            <p class="create_subtitle">Fill in the details below to publish a new marathon for participants to join.</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(successMsg))
+        {
+            <div class="create_alert create_alert_success">
+                <i class="fa fa-check-circle"></i>
+                <span>@successMsg</span>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(errorMsg))
+        {
+            <div class="create_alert create_alert_error">
+                <i class="fa fa-exclamation-circle"></i>
+                <span>@errorMsg</span>
+            </div>
+        }
+
+        @if (myCategories.Count == 0)
+        {
+            <div class="create_empty_cat">
+                You need at least one category before creating an event.
+                <a class="create_empty_link" href="/Home/Categories">Create a category first</a>.
+            </div>
+        }
+
+        <div class="create_card">
+
+            <form method="post" action="/Home/CreateEvent" enctype="multipart/form-data">
+
+                <div class="create_section">
+                    <h2 class="create_section_title">Basic info</h2>
+                    <p class="create_section_text">Give your event a name and a short description.</p>
+                </div>
+
+                <div class="create_field">
+                    <label class="create_label" for="eventName">Event name *</label>
+                    <input class="create_input" id="eventName" name="eventName" type="text" placeholder="e.g. Johannesburg City Marathon" required maxlength="60">
+                </div>
+
+                <div class="create_field">
+                    <label class="create_label" for="description">Description</label>
+                    <textarea class="create_input create_textarea" id="description" name="description" placeholder="What is this event about?" maxlength="255"></textarea>
+                </div>
+
+                <div class="create_divider"></div>
+
+                <div class="create_section">
+                    <h2 class="create_section_title">Schedule and location</h2>
+                    <p class="create_section_text">When and where is the event happening?</p>
+                </div>
+
+                <div class="create_row">
+                    <div class="create_field">
+                        <label class="create_label" for="date">Event date *</label>
+                        <input class="create_input" id="date" name="date" type="date" required>
+                    </div>
+
+                    <div class="create_field">
+                        <label class="create_label" for="startTime">Start time *</label>
+                        <input class="create_input" id="startTime" name="startTime" type="time" required>
+                    </div>
+                </div>
+
+                <div class="create_field">
+                    <label class="create_label" for="location">Location *</label>
+                    <input class="create_input" id="location" name="location" type="text" placeholder="e.g. Johannesburg CBD" required maxlength="70">
+                </div>
+
+                <div class="create_row">
+                    <div class="create_field">
+                        <label class="create_label" for="distance">Distance (km) *</label>
+                        <input class="create_input" id="distance" name="distance" type="number" step="0.01" min="0.01" max="999.99" placeholder="e.g. 42.00" required>
+                    </div>
+
+                    <div class="create_field">
+                        <label class="create_label" for="eventType">Event type *</label>
+                        <input class="create_input" id="eventType" name="eventType" type="text" placeholder="e.g. Marathon, Half Marathon, Fun Run" required maxlength="60">
+                    </div>
+                </div>
+
+                <div class="create_divider"></div>
+
+                <div class="create_section">
+                    <h2 class="create_section_title">Category and image</h2>
+                    <p class="create_section_text">Pick a category and add an image for the event card.</p>
+                </div>
+
+                <div class="create_row">
+                    <div class="create_field">
+                        <label class="create_label" for="age">Minimum age *</label>
+                        <input class="create_input" id="age" name="age" type="number" min="0" max="120" placeholder="e.g. 18" required>
+                    </div>
+
+                    <div class="create_field">
+                        <label class="create_label" for="categoryId">Category *</label>
+                        <select class="create_input create_select" id="categoryId" name="categoryId" required>
+                            <option value="">Select a category</option>
+                            @foreach (var c in myCategories)
+                            {
+                                <option value="@c["id"]">@c["name"]</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <div class="create_field">
+                    <label class="create_label" for="imageFile">Event image</label>
+                    <input class="create_input" id="imageFile" name="imageFile" type="file" accept="image/*">
+                </div>
+
+                <div class="create_actions">
+                    <a class="create_btn create_btn_light" href="/Home/MyEvents">
+                        <i class="fa fa-arrow-left"></i>
+                        <span>Cancel</span>
+                    </a>
+                    <button class="create_btn create_btn_primary" type="submit" @(myCategories.Count == 0 ? "disabled" : "")>
+                        <i class="fa fa-check"></i>
+                        <span>Create event</span>
+                    </button>
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</body>
+</html>

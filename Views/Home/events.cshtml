@@ -1,0 +1,384 @@
+﻿@using System.Data.SqlClient
+@using API_template.backend
+
+@{
+    ViewData["Title"] = "Events";
+    Layout = null;
+
+    var userName = Context.Session.GetString("user_name") ?? "";
+    var isLoggedIn = !string.IsNullOrEmpty(userName);
+    var userId = Context.Session.GetString("user_id") ?? "0";
+
+    manage_join_events join_manager = new manage_join_events();
+
+    var categories = new List<Dictionary<string, object>>();
+    var allEvents = new List<Dictionary<string, object>>();
+
+    SqlDataReader read_categories = join_manager.view_all_categoriesSite();
+    try
+    {
+        while (read_categories.Read())
+        {
+            categories.Add(new Dictionary<string, object>
+            {
+                { "id", read_categories["id"] },
+                { "name", read_categories["name"] },
+                { "description", read_categories["description"] }
+            });
+        }
+    }
+    finally { read_categories.Close(); }
+
+    SqlDataReader read_events = join_manager.view_all_eventsSite();
+    try
+    {
+        while (read_events.Read())
+        {
+            allEvents.Add(new Dictionary<string, object>
+            {
+                { "eventID", read_events["eventID"] },
+                { "eventName", read_events["eventName"] },
+                { "description", read_events["description"] },
+                { "date", read_events["date"] },
+                { "location", read_events["location"] },
+                { "eventType", read_events["eventType"] },
+                { "startTime", read_events["startTime"] },
+                { "distance", read_events["distance"] },
+                { "age", read_events["age"] },
+                { "category_id", read_events["category_id"] },
+                { "image", read_events["image"] }
+            });
+        }
+    }
+    finally { read_events.Close(); }
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/menu.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/footer.css" asp-append-version="true" />
+</head>
+<body>
+
+    <nav class="menu" aria-label="Main navigation">
+        <div class="menu_inner">
+            <a class="menu_brand" href="/">
+                <img src="~/images/logo.png" alt="Logo" class="menu_logo">
+            </a>
+
+            <button class="menu_toggle" id="menuToggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="menuList">
+                <i class="fa fa-bars"></i>
+            </button>
+
+            <ul class="menu_list" id="menuList">
+                <li class="menu_item">
+                    <a class="menu_link" href="/"><i class="fa fa-home"></i><span>Home</span></a>
+                </li>
+                <li class="menu_item">
+                    <a class="menu_link" href="/Home/about"><i class="fa fa-info-circle"></i><span>About</span></a>
+                </li>
+                <li class="menu_item">
+                    <a class="menu_link" href="/Home/events"><i class="fa fa-flag"></i><span>Marathons</span></a>
+                </li>
+                <li class="menu_item">
+                    <a class="menu_link" href="/Home/contact"><i class="fa fa-envelope"></i><span>Contact</span></a>
+                </li>
+                <li class="menu_item">
+                    <a class="menu_link" href="/Home/login"><i class="fa fa-sign-in"></i><span>Login</span></a>
+                </li>
+                <li class="menu_item">
+                    <a class="menu_link menu_link_accent" href="/Home/register"><i class="fa fa-user-plus"></i><span>Register</span></a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <main class="events">
+
+        <section class="events_intro">
+            <div class="events_intro_overlay"></div>
+            <div class="events_intro_content">
+                <h1 class="events_title">Find your next<br>marathon.</h1>
+                <p class="events_subtitle">
+                    Pick a category below to see the marathons inside it.
+                </p>
+            </div>
+        </section>
+
+        <section class="events_categories_section" id="categoryStage">
+            <div class="events_section_head">
+                <h2 class="events_section_title">Choose a category</h2>
+                <p class="events_section_text">Select a category to show the marathons in that category.</p>
+            </div>
+
+            @if (categories.Count == 0)
+            {
+                <div class="events_empty_state">
+                    <i class="fa fa-tags"></i>
+                    <h3 class="events_empty_title">No categories yet</h3>
+                    <p class="events_empty_text">There are no categories on the platform yet, so there are no marathons to show. Check back soon.</p>
+                </div>
+            }
+            else
+            {
+                <div class="events_table_wrap">
+                    <table class="events_table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Category</th>
+                                <th>Description</th>
+                                <th>Marathons</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{
+                                int rowNum = 0;
+                            }
+                            @foreach (var c in categories)
+                            {
+                                rowNum++;
+                                int catId = Convert.ToInt32(c["id"]);
+                                int countInCat = allEvents.Count(e => Convert.ToInt32(e["category_id"]) == catId);
+
+                                <tr data-category-id="@catId" data-category-name="@c["name"]" onclick="showEventsFromRow(@catId, '@c["name"]')">
+                                    <td data-label="#" class="events_id_cell">@rowNum</td>
+                                    <td data-label="Category">
+                                        <div class="events_name_cell">
+                                            <span class="events_name_icon"><i class="fa fa-tags"></i></span>
+                                            <span>@c["name"]</span>
+                                        </div>
+                                    </td>
+                                    <td data-label="Description">@c["description"]</td>
+                                    <td data-label="Marathons">
+                                        <span class="events_pill">
+                                            <i class="fa fa-flag"></i>
+                                            @countInCat marathon@(countInCat == 1 ? "" : "s")
+                                        </span>
+                                    </td>
+                                    <td data-label="Actions">
+                                        <button type="button" class="events_view_btn" onclick="event.stopPropagation(); showEventsFromRow(@catId, '@c["name"]')">
+                                            <i class="fa fa-eye"></i>
+                                            <span>View</span>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+
+        <section class="events_list_section" id="eventStage" style="display: none;">
+            <div class="events_section_head">
+                <div>
+                    <h2 class="events_section_title" id="eventsListTitle">Marathons</h2>
+                    <p class="events_section_text" id="eventsCount">0 marathons</p>
+                </div>
+                <button type="button" class="events_back_btn" id="backToCategories">
+                    <i class="fa fa-arrow-left"></i>
+                    <span>Back to categories</span>
+                </button>
+            </div>
+
+            <div class="events_grid" id="eventsGrid"></div>
+
+            <div class="events_empty_state" id="eventsEmpty" style="display: none;">
+                <i class="fa fa-flag"></i>
+                <h3 class="events_empty_title">No marathons yet</h3>
+                <p class="events_empty_text">This category doesn't have any marathons yet. Try another category or check back later.</p>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="footer">
+        <div class="footer_inner">
+
+            <div class="footer_middle">
+                <div class="footer_col">
+                    <h4 class="footer_col_title">Explore</h4>
+                    <ul class="footer_list">
+                        <li><a class="footer_link" href="/">Home</a></li>
+                        <li><a class="footer_link" href="/Home/about">About</a></li>
+                        <li><a class="footer_link" href="/Home/events">Marathons</a></li>
+                        <li><a class="footer_link" href="/Home/contact">Contact</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer_col">
+                    <h4 class="footer_col_title">Your account</h4>
+                    <ul class="footer_list">
+                        <li><a class="footer_link" href="/Home/login">Log in</a></li>
+                        <li><a class="footer_link" href="/Home/register">Create account</a></li>
+                        <li><a class="footer_link" href="/Home/dashboard">Dashboard</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer_col">
+                    <h4 class="footer_col_title">Get in touch</h4>
+                    <ul class="footer_list footer_list_contact">
+                        <li><i class="fa fa-map-marker"></i> Johannesburg, South Africa</li>
+                        <li><i class="fa fa-phone"></i> +27 11 234 5678</li>
+                        <li><i class="fa fa-envelope"></i> hello@example.com</li>
+                    </ul>
+                </div>
+
+                <div class="footer_col">
+                    <h4 class="footer_col_title">Follow</h4>
+                    <div class="footer_socials">
+                        <a class="footer_social" href="#" aria-label="Facebook"><i class="fa fa-facebook"></i></a>
+                        <a class="footer_social" href="#" aria-label="Twitter"><i class="fa fa-twitter"></i></a>
+                        <a class="footer_social" href="#" aria-label="Instagram"><i class="fa fa-instagram"></i></a>
+                        <a class="footer_social" href="#" aria-label="YouTube"><i class="fa fa-youtube-play"></i></a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer_bottom">
+                <p class="footer_copy">© 2026 Marathon. All rights reserved.</p>
+                <ul class="footer_legal">
+                    <li><a class="footer_link" href="#">Privacy</a></li>
+                    <li><a class="footer_link" href="#">Terms</a></li>
+                </ul>
+            </div>
+
+        </div>
+    </footer>
+
+    <script>
+            (function () {
+                const toggle = document.getElementById('menuToggle');
+                const list = document.getElementById('menuList');
+                if (!toggle || !list) return;
+
+                toggle.addEventListener('click', function () {
+                    const isOpen = list.classList.toggle('is_open');
+                    toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+
+                    const icon = toggle.querySelector('i');
+                    if (icon) {
+                        icon.className = isOpen ? 'fa fa-times' : 'fa fa-bars';
+                    }
+                });
+
+                list.querySelectorAll('.menu_link').forEach(function (link) {
+                    link.addEventListener('click', function () {
+                        if (window.innerWidth <= 768) {
+                            list.classList.remove('is_open');
+                            toggle.setAttribute('aria-expanded', 'false');
+                            const icon = toggle.querySelector('i');
+                            if (icon) icon.className = 'fa fa-bars';
+                        }
+                    });
+                });
+
+                window.addEventListener('resize', function () {
+                    if (window.innerWidth > 768) {
+                        list.classList.remove('is_open');
+                        toggle.setAttribute('aria-expanded', 'false');
+                        const icon = toggle.querySelector('i');
+                        if (icon) icon.className = 'fa fa-bars';
+                    }
+                });
+            })();
+
+            (function () {
+                const allEvents = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(allEvents.Select(e => new
+                    {
+                                eventID = Convert.ToInt32(e["eventID"]),
+                                eventName = e["eventName"]?.ToString() ?? "",
+                                description = e["description"]?.ToString() ?? "",
+                                date = Convert.ToDateTime(e["date"]).ToString("dd MMM yyyy"),
+                                startTime = ((TimeSpan)e["startTime"]).ToString(@"hh\:mm"),
+                                location = e["location"]?.ToString() ?? "",
+                                eventType = e["eventType"]?.ToString() ?? "",
+                                distance = e["distance"]?.ToString() ?? "",
+                        age = e["age"]?.ToString() ?? "",
+                                categoryId = Convert.ToInt32(e["category_id"]),
+                                image = e["image"]?.ToString() ?? ""
+                        })));
+
+                const placeholders = [
+                    "https://images.unsplash.com/photo-1552674605-db6ffd4facb5?auto=format&fit=crop&w=800&q=80",
+                    "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=800&q=80",
+                    "https://images.unsplash.com/photo-1571008887538-b36bb32f4571?auto=format&fit=crop&w=800&q=80",
+                    "https://images.unsplash.com/photo-1517963879433-6ad2b056d712?auto=format&fit=crop&w=800&q=80"
+                ];
+
+                const categoryStage = document.getElementById('categoryStage');
+                const eventStage = document.getElementById('eventStage');
+                const eventsListTitle = document.getElementById('eventsListTitle');
+                const eventsCount = document.getElementById('eventsCount');
+                const eventsGrid = document.getElementById('eventsGrid');
+                const eventsEmpty = document.getElementById('eventsEmpty');
+                const backBtn = document.getElementById('backToCategories');
+
+                function resolveImage(img, index) {
+                    return img && img.length > 0 ? img : placeholders[index % placeholders.length];
+                }
+
+                function showCategories() {
+                    eventStage.style.display = 'none';
+                    categoryStage.style.display = 'block';
+                }
+
+                function showEvents(catId, catName) {
+                    categoryStage.style.display = 'none';
+                    eventStage.style.display = 'block';
+
+                    const filtered = allEvents.filter(ev => ev.categoryId === catId);
+                    eventsListTitle.textContent = catName + ' marathons';
+                    eventsCount.textContent = filtered.length + ' marathon' + (filtered.length === 1 ? '' : 's');
+                    eventsGrid.innerHTML = '';
+
+                    if (filtered.length === 0) {
+                        eventsEmpty.style.display = 'block';
+                        return;
+                    }
+
+                    eventsEmpty.style.display = 'none';
+
+                    filtered.forEach(function (ev, index) {
+                        const imgSrc = resolveImage(ev.image, index);
+
+                        const card = document.createElement('article');
+                        card.className = 'events_card';
+                        card.innerHTML =
+                            '<div class="events_card_image">' +
+                            '<img src="' + imgSrc + '" alt="' + ev.eventName + '" class="events_card_img" onerror="this.onerror=null;this.src=\'' + placeholders[0] + '\';">' +
+                            '</div>' +
+                            '<div class="events_card_body">' +
+                            '<h3 class="events_card_title">' + ev.eventName + '</h3>' +
+                            '<p class="events_card_text">' + ev.description + '</p>' +
+                            '<ul class="events_card_meta">' +
+                            '<li><i class="fa fa-calendar"></i><span>' + ev.date + '</span></li>' +
+                            '<li><i class="fa fa-clock-o"></i><span>' + ev.startTime + '</span></li>' +
+                            '<li><i class="fa fa-map-marker"></i><span>' + ev.location + '</span></li>' +
+                            '<li><i class="fa fa-tags"></i><span>' + ev.eventType + '</span></li>' +
+                            '<li><i class="fa fa-road"></i><span>' + ev.distance + ' km</span></li>' +
+                            '<li><i class="fa fa-user"></i><span>Min age ' + ev.age + '</span></li>' +
+                            '</ul>' +
+                            '</div>';
+                        eventsGrid.appendChild(card);
+                    });
+                }
+
+                window.showEventsFromRow = function (catId, catName) {
+                    showEvents(catId, catName);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                };
+
+                backBtn.addEventListener('click', showCategories);
+            })();
+    </script>
+
+</body>
+</html>

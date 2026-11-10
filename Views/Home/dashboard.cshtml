@@ -1,0 +1,510 @@
+﻿@{
+    ViewData["Title"] = "Dashboard";
+    Layout = null;
+    var userName = Context.Session.GetString("user_name") ?? "User";
+    var userRole = Context.Session.GetString("user_role") ?? "User";
+    var userEmail = Context.Session.GetString("user_email") ?? "";
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            html, body {
+                height: 90%;
+                font-family: 'Inter', 'Poppins', system-ui, sans-serif;
+                background-color: #ffffff;
+            }
+
+            .dashboard {
+                display: flex;
+                width: 100%;
+                min-height: 90vh;
+                background-color: #ffffff;
+            }
+
+            .dashboard_sidebar {
+                width: 260px;
+                flex-shrink: 0;
+                background-color: #0d1b33;
+                border-right: 1px solid #1a2d4d;
+                display: flex;
+                flex-direction: column;
+                position: sticky;
+                top: 0;
+                height: 100vh;
+                overflow-y: auto;
+                z-index: 100;
+            }
+
+            .dashboard_sidebar_brand {
+                display: flex;
+                align-items: center;
+                gap: 0.75rem;
+                padding: 1.25rem 1.5rem;
+                border-bottom: 1px solid #1a2d4d;
+            }
+
+            .dashboard_sidebar_logo {
+                height: 32px;
+                width: auto;
+                display: block;
+            }
+
+            .dashboard_sidebar_label {
+                font-size: 0.7rem;
+                font-weight: 700;
+                color: #6b8bb8;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }
+
+            .dashboard_nav {
+                display: flex;
+                flex-direction: column;
+                padding: 1rem 0.75rem;
+                gap: 0.25rem;
+                flex: 1;
+            }
+
+            .dashboard_nav_section {
+                font-size: 0.65rem;
+                font-weight: 700;
+                color: #4a6b99;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                padding: 0.75rem 1rem 0.35rem;
+                margin-top: 0.5rem;
+            }
+
+            .dashboard_nav_item {
+                display: flex;
+                align-items: center;
+                gap: 0.75rem;
+                width: 100%;
+                padding: 0.7rem 1rem;
+                background: none;
+                border: none;
+                border-radius: 8px;
+                font-family: inherit;
+                font-size: 0.875rem;
+                font-weight: 500;
+                color: #b8cbe8;
+                text-align: left;
+                text-decoration: none;
+                cursor: pointer;
+                transition: background-color 0.15s ease, color 0.15s ease;
+            }
+
+                .dashboard_nav_item i {
+                    width: 18px;
+                    text-align: center;
+                    font-size: 0.95rem;
+                    flex-shrink: 0;
+                }
+
+                .dashboard_nav_item:hover {
+                    background-color: #1a2d4d;
+                    color: #ffffff;
+                }
+
+            .dashboard_nav_active {
+                background-color: #1e5aaa;
+                color: #ffffff;
+            }
+
+                .dashboard_nav_active:hover {
+                    background-color: #1e5aaa;
+                    color: #ffffff;
+                }
+
+            .dashboard_nav_footer {
+                padding: 0.75rem;
+                border-top: 1px solid #1a2d4d;
+                display: flex;
+                flex-direction: column;
+                gap: 0.25rem;
+            }
+
+            .dashboard_nav_logout {
+                color: #f19aa0;
+            }
+
+                .dashboard_nav_logout:hover {
+                    background-color: #3a1f24;
+                    color: #ff8b92;
+                }
+
+            .dashboard_body {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                min-width: 0;
+                background-color: #ffffff;
+            }
+
+            .dashboard_topbar {
+                display: flex;
+                align-items: center;
+                gap: 1rem;
+                padding: 1rem 1.5rem;
+                background-color: #ffffff;
+                border-bottom: 1px solid #e5ecf5;
+                position: sticky;
+                top: 0;
+                z-index: 90;
+            }
+
+            .dashboard_topbar_toggle {
+                display: none;
+                background: none;
+                border: 1px solid #e5ecf5;
+                border-radius: 6px;
+                color: #1e5aaa;
+                font-size: 1rem;
+                padding: 0.5rem 0.75rem;
+                cursor: pointer;
+            }
+
+            .dashboard_topbar_title {
+                font-size: 1.1rem;
+                font-weight: 700;
+                color: #0d1b33;
+                flex: 1;
+            }
+
+            .dashboard_topbar_user {
+                display: flex;
+                align-items: center;
+                gap: 0.75rem;
+            }
+
+            .dashboard_topbar_avatar {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 40px;
+                height: 40px;
+                border-radius: 50%;
+                background-color: #1e5aaa;
+                color: #ffffff;
+                font-size: 0.95rem;
+            }
+
+            .dashboard_topbar_info {
+                display: flex;
+                flex-direction: column;
+                line-height: 1.2;
+            }
+
+            .dashboard_topbar_name {
+                font-size: 0.88rem;
+                font-weight: 600;
+                color: #0d1b33;
+            }
+
+            .dashboard_topbar_role {
+                font-size: 0.72rem;
+                color: #1e5aaa;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                font-weight: 600;
+            }
+
+            .dashboard_content {
+                flex: 1;
+                background-color: #ffffff;
+                position: relative;
+            }
+
+            .dashboard_frame {
+                width: 100%;
+                height: calc(100vh - 72px);
+                border: 0;
+                display: block;
+                background-color: #ffffff;
+            }
+
+            .dashboard_modal {
+                position: fixed;
+                inset: 0;
+                display: none;
+                align-items: center;
+                justify-content: center;
+                background-color: rgba(13, 27, 51, 0.55);
+                z-index: 500;
+                padding: 1rem;
+            }
+
+            .dashboard_modal_open {
+                display: flex;
+            }
+
+            .dashboard_modal_box {
+                background-color: #ffffff;
+                border-radius: 12px;
+                padding: 2rem;
+                max-width: 400px;
+                width: 100%;
+                text-align: center;
+                box-shadow: 0 20px 60px rgba(13, 27, 51, 0.25);
+            }
+
+            .dashboard_modal_icon {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 56px;
+                height: 56px;
+                border-radius: 50%;
+                background-color: #eef4fc;
+                color: #1e5aaa;
+                font-size: 1.4rem;
+                margin-bottom: 1.25rem;
+            }
+
+            .dashboard_modal_title {
+                font-size: 1.25rem;
+                font-weight: 700;
+                color: #0d1b33;
+                margin: 0 0 0.5rem;
+            }
+
+            .dashboard_modal_text {
+                font-size: 0.9rem;
+                line-height: 1.6;
+                color: #666;
+                margin: 0 0 1.75rem;
+            }
+
+            .dashboard_modal_actions {
+                display: flex;
+                gap: 0.75rem;
+            }
+
+            .dashboard_modal_btn {
+                flex: 1;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: 0.75rem 1rem;
+                border-radius: 6px;
+                font-size: 0.85rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                text-decoration: none;
+                cursor: pointer;
+                border: 1px solid transparent;
+                font-family: inherit;
+                transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+            }
+
+            .dashboard_modal_btn_light {
+                background-color: #ffffff;
+                color: #555;
+                border-color: #e5e5e5;
+            }
+
+                .dashboard_modal_btn_light:hover {
+                    background-color: #f2f2f2;
+                }
+
+            .dashboard_modal_btn_dark {
+                background-color: #1e5aaa;
+                color: #ffffff;
+                border-color: #1e5aaa;
+            }
+
+                .dashboard_modal_btn_dark:hover {
+                    background-color: #164a8f;
+                    border-color: #164a8f;
+                }
+
+    </style>
+</head>
+<body>
+
+    <div class="dashboard">
+
+        <aside class="dashboard_sidebar" id="dashboardSidebar">
+            <div class="dashboard_sidebar_brand">
+                <img src="~/images/logo.png" alt="Logo" class="dashboard_sidebar_logo">
+                <span class="dashboard_sidebar_label">Dashboard</span>
+            </div>
+
+            <nav class="dashboard_nav">
+
+                <div class="dashboard_nav_section">Main</div>
+
+                <button type="button" class="dashboard_nav_item dashboard_nav_active" data-url="/Home/overview">
+                    <i class="fa fa-th-large"></i>
+                    <span>Overview</span>
+                </button>
+
+                <button type="button" class="dashboard_nav_item" data-url="/Home/Profile">
+                    <i class="fa fa-user"></i>
+                    <span>Profile</span>
+                </button>
+
+                @if (userRole == "Organizer")
+                {
+                    <div class="dashboard_nav_section">Organizing</div>
+
+                    <button type="button" class="dashboard_nav_item" data-url="/Home/MyEvents">
+                        <i class="fa fa-flag"></i>
+                        <span>My Marathons</span>
+                    </button>
+                    <button type="button" class="dashboard_nav_item" data-url="/Home/CreateEvent">
+                        <i class="fa fa-plus-circle"></i>
+                        <span>Create Marathon</span>
+                    </button>
+                    <button type="button" class="dashboard_nav_item" data-url="/Home/Participants">
+                        <i class="fa fa-users"></i>
+                        <span>Participants</span>
+                    </button>
+                    <button type="button" class="dashboard_nav_item" data-url="/Home/Categories">
+                        <i class="fa fa-tags"></i>
+                        <span>Categories</span>
+                    </button>
+                }
+                else
+                {
+                    <div class="dashboard_nav_section">Running</div>
+
+                    <button type="button" class="dashboard_nav_item" data-url="/Home/MyJoinedEvents">
+                        <i class="fa fa-flag-checkered"></i>
+                        <span>My Marathons</span>
+                    </button>
+                    <button type="button" class="dashboard_nav_item" data-url="/Home/BrowseEvents">
+                        <i class="fa fa-search"></i>
+                        <span>Browse Marathons</span>
+                    </button>
+                }
+
+            </nav>
+
+            <div class="dashboard_nav_footer">
+                <button type="button" class="dashboard_nav_item dashboard_nav_logout" id="dashboardLogout">
+                    <i class="fa fa-sign-out"></i>
+                    <span>Logout</span>
+                </button>
+            </div>
+        </aside>
+
+        <div class="dashboard_body">
+
+            <header class="dashboard_topbar">
+                <button type="button" class="dashboard_topbar_toggle" id="dashboardToggle" aria-label="Toggle sidebar">
+                    <i class="fa fa-bars"></i>
+                </button>
+
+                <div class="dashboard_topbar_title" id="dashboardTitle">Overview</div>
+
+                <div class="dashboard_topbar_user">
+                    <div class="dashboard_topbar_avatar">
+                        <i class="fa fa-user"></i>
+                    </div>
+                    <div class="dashboard_topbar_info">
+                        <span class="dashboard_topbar_name">@userName</span>
+                        <span class="dashboard_topbar_role">@userRole</span>
+                    </div>
+                </div>
+            </header>
+
+            <main class="dashboard_content">
+                <iframe id="dashboardFrame"
+                        class="dashboard_frame"
+                        src="/Home/overview"
+                        title="Dashboard content"></iframe>
+            </main>
+
+        </div>
+
+    </div>
+
+    <div class="dashboard_modal" id="logoutModal">
+        <div class="dashboard_modal_box">
+            <div class="dashboard_modal_icon">
+                <i class="fa fa-sign-out"></i>
+            </div>
+            <h3 class="dashboard_modal_title">Log out?</h3>
+            <p class="dashboard_modal_text">Are you sure you want to log out of your account?</p>
+            <div class="dashboard_modal_actions">
+                <button type="button" class="dashboard_modal_btn dashboard_modal_btn_light" id="logoutCancel">Cancel</button>
+                <a class="dashboard_modal_btn dashboard_modal_btn_dark" href="/Home/Logout">Log out</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+            (function () {
+                const navItems = document.querySelectorAll('.dashboard_nav_item[data-url]');
+                const frame = document.getElementById('dashboardFrame');
+                const title = document.getElementById('dashboardTitle');
+                const toggle = document.getElementById('dashboardToggle');
+                const sidebar = document.getElementById('dashboardSidebar');
+                const logoutBtn = document.getElementById('dashboardLogout');
+                const logoutModal = document.getElementById('logoutModal');
+                const logoutCancel = document.getElementById('logoutCancel');
+
+                function navigate(url, label) {
+                    frame.src = url;
+                    title.textContent = label || 'Dashboard';
+
+                    navItems.forEach(function (item) {
+                        item.classList.remove('dashboard_nav_active');
+                    });
+
+                    const active = document.querySelector('.dashboard_nav_item[data-url="' + url + '"]');
+                    if (active) {
+                        active.classList.add('dashboard_nav_active');
+                    }
+
+                    if (window.innerWidth <= 900) {
+                        sidebar.classList.remove('dashboard_sidebar_open');
+                    }
+                }
+
+                navItems.forEach(function (item) {
+                    item.addEventListener('click', function () {
+                        const url = item.getAttribute('data-url');
+                        const label = item.querySelector('span').textContent;
+                        navigate(url, label);
+                    });
+                });
+
+                toggle.addEventListener('click', function () {
+                    sidebar.classList.toggle('dashboard_sidebar_open');
+                });
+
+                logoutBtn.addEventListener('click', function () {
+                    logoutModal.classList.add('dashboard_modal_open');
+                });
+
+                logoutCancel.addEventListener('click', function () {
+                    logoutModal.classList.remove('dashboard_modal_open');
+                });
+
+                logoutModal.addEventListener('click', function (e) {
+                    if (e.target === logoutModal) {
+                        logoutModal.classList.remove('dashboard_modal_open');
+                    }
+                });
+
+                window.navigate = navigate;
+            })();
+    </script>
+
+</body>
+</html>

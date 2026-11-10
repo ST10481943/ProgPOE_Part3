@@ -1,0 +1,816 @@
+﻿@using System.Data.SqlClient
+@using API_template.backend
+
+@{
+    Layout = null;
+    var userName = Context.Session.GetString("user_name") ?? "User";
+    var userId = Context.Session.GetString("user_id") ?? "0";
+    int participant_id = Int32.Parse(userId);
+
+    manage_join_events join_manager = new manage_join_events();
+
+    string successMsg = TempData["JoinSuccess"] as string;
+    string errorMsg = TempData["JoinError"] as string;
+
+    if (Context.Request.Method == "POST")
+    {
+        string action = Context.Request.Form["formAction"].ToString().Trim();
+
+        if (action == "join")
+        {
+            string eventIdRaw = Context.Request.Form["eventId"].ToString().Trim();
+            int eventId;
+
+            if (!int.TryParse(eventIdRaw, out eventId) || eventId <= 0)
+            {
+                errorMsg = "Invalid marathon selected.";
+            }
+            else
+            {
+                string result = join_manager.store_enrolment(eventId, Context);
+
+                if (result.Contains("successfully"))
+                {
+                    TempData["JoinSuccess"] = result;
+                }
+                else
+                {
+                    TempData["JoinError"] = result;
+                }
+
+                Context.Response.Redirect(Context.Request.Path);
+                return;
+            }
+        }
+    }
+
+    var myCategories = new List<Dictionary<string, object>>();
+    var allEvents = new List<Dictionary<string, object>>();
+    var myEnrolmentEventIds = new List<int>();
+
+    SqlDataReader read_categories = join_manager.view_all_categoriesSite();
+    try
+    {
+        while (read_categories.Read())
+        {
+            myCategories.Add(new Dictionary<string, object>
+            {
+                { "id", read_categories["id"] },
+                { "name", read_categories["name"] },
+                { "description", read_categories["description"] },
+                { "organizer_id", read_categories["organizer_id"] }
+            });
+        }
+    }
+    finally { read_categories.Close(); }
+
+    foreach (var cat in myCategories)
+    {
+        int catId = Convert.ToInt32(cat["id"]);
+        SqlDataReader read_events = join_manager.view_events_by_categorySite(catId);
+
+        try
+        {
+            while (read_events.Read())
+            {
+                allEvents.Add(new Dictionary<string, object>
+                {
+                    { "eventID", read_events["eventID"] },
+                    { "eventName", read_events["eventName"] },
+                    { "description", read_events["description"] },
+                    { "date", read_events["date"] },
+                    { "location", read_events["location"] },
+                    { "distance", read_events["distance"] },
+                    { "eventType", read_events["eventType"] },
+                    { "age", read_events["age"] },
+                    { "startTime", read_events["startTime"] },
+                    { "category_id", read_events["category_id"] },
+                    { "image", read_events["image"] }
+                });
+            }
+        }
+        finally { read_events.Close(); }
+    }
+
+    SqlDataReader read_my_enrolments = join_manager.view_my_enrolmentsSite(participant_id);
+    try
+    {
+        while (read_my_enrolments.Read())
+        {
+            myEnrolmentEventIds.Add(Convert.ToInt32(read_my_enrolments["eventID"]));
+        }
+    }
+    finally { read_my_enrolments.Close(); }
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            html, body {
+                width: 100%;
+                background: #ffffff;
+            }
+
+            body {
+                font-family: 'Inter', 'Poppins', system-ui, sans-serif;
+                background: #ffffff;
+                color: #333;
+            }
+
+            .browse {
+                padding: 2rem 2.5rem;
+                width: 100%;
+                min-height: 100vh;
+            }
+
+            .browse_head {
+                margin: 0 0 2rem;
+            }
+
+            .browse_hello {
+                font-size: 0.75rem;
+                font-weight: 700;
+                color: #1e5aba;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                margin: 0 0 0.35rem;
+            }
+
+            .browse_title {
+                font-size: 1.75rem;
+                font-weight: 700;
+                color: #0d1cf3;
+                letter-spacing: -0.5px;
+                margin: 0 0 0.35rem;
+            }
+
+            .browse_subtitle {
+                font-size: 0.9rem;
+                color: #666;
+                margin: 0;
+                max-width: 645px;
+            }
+
+            .browse_alert {
+                display: flex;
+                align-items: flex-start;
+                gap: 0.6rem;
+                padding: 1rem 1.25rem;
+                border-radius: 8px;
+                font-size: 0.9rem;
+                margin-bottom: 1.5rem;
+                line-height: 1.5;
+            }
+
+                .browse_alert i {
+                    font-size: 1.05rem;
+                    flex-shrink: 0;
+                    margin-top: 2px;
+                }
+
+            .browse_alert_success {
+                background: #eefaf1;
+                border: 1px solid #b6e3c3;
+                color: #1b7a3e;
+            }
+
+            .browse_alert_error {
+                background: #fbeaea;
+                border: 1px solid #f5c5c5;
+                color: #c0392b;
+            }
+
+            .browse_empty {
+                background: #ffffff;
+                border: 1px dashed #dbe6f5;
+                border-radius: 10px;
+                padding: 3rem 1.5rem;
+                text-align: center;
+                color: #777;
+            }
+
+                .browse_empty i {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: 48px;
+                    height: 48px;
+                    border-radius: 50%;
+                    background: #eef4fc;
+                    color: #1e5aaa;
+                    font-size: 1.2rem;
+                    margin-bottom: 0.75rem;
+                }
+
+            .browse_empty_title {
+                font-size: 0.95rem;
+                font-weight: 700;
+                color: #0d1b33;
+                margin: 0 0 0.35rem;
+            }
+
+            .browse_empty_text {
+                font-size: 0.85rem;
+                color: #777;
+                margin: 0;
+                line-height: 1.6;
+            }
+
+            .browse_section {
+                margin-bottom: 2.5rem;
+            }
+
+            .browse_section_head {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 1rem;
+                padding-bottom: 0.85rem;
+                margin-bottom: 1.1rem;
+                border-bottom: 1px solid #eef4fc;
+                flex-wrap: wrap;
+            }
+
+            .browse_section_title_group {
+                display: flex;
+                align-items: center;
+                gap: 0.85rem;
+                min-width: 0;
+            }
+
+            .browse_section_icon {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 40px;
+                height: 40px;
+                border-radius: 8px;
+                background: #eef4fc;
+                color: #1e5aaa;
+                font-size: 1rem;
+                flex-shrink: 0;
+            }
+
+            .browse_section_text {
+                min-width: 0;
+            }
+
+            .browse_section_title {
+                font-size: 1.1rem;
+                font-weight: 700;
+                color: #0d1b33;
+                letter-spacing: -0.3px;
+                margin: 0;
+            }
+
+            .browse_section_desc {
+                font-size: 0.8rem;
+                color: #777;
+                margin: 0.2rem 0 0;
+                line-height: 1.5;
+            }
+
+            .browse_section_count {
+                font-size: 0.72rem;
+                color: #6b8bb8;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                font-weight: 600;
+                white-space: nowrap;
+            }
+
+            .browse_section_empty {
+                display: flex;
+                align-items: center;
+                gap: 0.6rem;
+                padding: 1.25rem 1.5rem;
+                border: 1px dashed #dbe6f5;
+                border-radius: 10px;
+                color: #777;
+                font-size: 0.85rem;
+                background: #ffffff;
+            }
+
+                .browse_section_empty i {
+                    color: #1e5aaa;
+                    font-size: 1rem;
+                }
+
+            .browse_event_grid {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 1.1rem;
+            }
+
+            .browse_event_card {
+                display: flex;
+                flex-direction: column;
+                background: #ffffff;
+                border: 1px solid #e5ecf5;
+                border-radius: 10px;
+                overflow: hidden;
+                transition: border-color 0.15s ease, box-shadow 0.15s ease;
+            }
+
+                .browse_event_card:hover {
+                    border-color: #1e5aaa;
+                    box-shadow: 0 4px 20px rgba(30, 90, 170, 0.06);
+                }
+
+            .browse_event_image {
+                width: 100%;
+                height: 150px;
+                background: #eef4fc;
+                overflow: hidden;
+            }
+
+            .browse_event_img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                display: block;
+            }
+
+            .browse_event_body {
+                display: flex;
+                flex-direction: column;
+                gap: 0.55rem;
+                padding: 1.1rem 1.15rem 1.15rem;
+                flex: 1;
+            }
+
+            .browse_event_type {
+                align-self: flex-start;
+                font-size: 0.65rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                color: #1e5aaa;
+                background: #eef4fc;
+                border-radius: 5px;
+                padding: 0.2rem 0.5rem;
+            }
+
+            .browse_event_title {
+                font-size: 1rem;
+                font-weight: 700;
+                color: #0d1b33;
+                margin: 0;
+                line-height: 1.3;
+            }
+
+            .browse_event_text {
+                font-size: 0.82rem;
+                color: #777;
+                line-height: 1.55;
+                margin: 0;
+                display: -webkit-box;
+                -webkit-line-clamp: 2;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
+            }
+
+            .browse_event_meta {
+                list-style: none;
+                display: flex;
+                flex-direction: column;
+                gap: 0.3rem;
+                margin: 0.2rem 0 0;
+            }
+
+                .browse_event_meta li {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.4rem;
+                    font-size: 0.78rem;
+                    color: #555;
+                }
+
+                    .browse_event_meta li i {
+                        color: #6b8bb8;
+                        font-size: 0.78rem;
+                        width: 12px;
+                        flex-shrink: 0;
+                    }
+
+            .browse_event_footer {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 0.6rem;
+                margin-top: auto;
+                padding-top: 0.85rem;
+                border-top: 1px solid #eef4fc;
+            }
+
+            .browse_event_status {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.3rem;
+                font-size: 0.7rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                padding: 0.25rem 0.55rem;
+                border-radius: 5px;
+            }
+
+            .browse_event_status_joined {
+                background: #eefaf1;
+                color: #1b7a3e;
+            }
+
+            .browse_event_status_open {
+                background: #eef4fc;
+                color: #1e5aaa;
+            }
+
+            .browse_join_btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.4rem;
+                padding: 0.5rem 0.85rem;
+                background: #1e5aaa;
+                color: #ffffff;
+                border: 1px solid #1e5aaa;
+                border-radius: 6px;
+                font-family: inherit;
+                font-size: 0.72rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                cursor: pointer;
+                transition: background-color 0.15s ease, border-color 0.15s ease;
+            }
+
+                .browse_join_btn:hover {
+                    background: #164887;
+                    border-color: #164887;
+                }
+
+            .browse_join_done {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 32px;
+                height: 32px;
+                border-radius: 50%;
+                background: #eefaf1;
+                color: #1b7a3e;
+                font-size: 0.85rem;
+            }
+
+            .browse_modal {
+                position: fixed;
+                inset: 0;
+                display: none;
+                align-items: center;
+                justify-content: center;
+                background-color: rgba(13, 27, 51, 0.55);
+                z-index: 500;
+                padding: 1rem;
+                overflow-y: auto;
+            }
+
+            .browse_modal_open {
+                display: flex;
+            }
+
+            .browse_modal_box {
+                position: relative;
+                width: 100%;
+                max-width: 420px;
+                background: #ffffff;
+                border-radius: 12px;
+                box-shadow: 0 24px 60px rgba(13, 27, 51, 0.25);
+                margin: auto;
+                padding: 2rem 1.75rem 1.75rem;
+                text-align: center;
+                animation: browse_pop 0.18s ease-out;
+            }
+
+            @@keyframes browse_pop {
+                from {
+                    opacity: 0;
+                    transform: translateY(8px) scale(0.98);
+                }
+
+                to {
+                    opacity: 1;
+                    transform: translateY(0) scale(1);
+                }
+            }
+
+            .browse_modal_close {
+                position: absolute;
+                top: 0.75rem;
+                right: 0.75rem;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 32px;
+                height: 32px;
+                border: none;
+                border-radius: 50%;
+                background: #f2f2f2;
+                color: #333;
+                font-size: 0.85rem;
+                cursor: pointer;
+                transition: background-color 0.15s ease, color 0.15s ease;
+            }
+
+                .browse_modal_close:hover {
+                    background: #c0392b;
+                    color: #ffffff;
+                }
+
+            .browse_modal_icon {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 52px;
+                height: 52px;
+                border-radius: 50%;
+                background: #eef4fc;
+                color: #1e5aaa;
+                font-size: 1.25rem;
+                margin-bottom: 0.9rem;
+            }
+
+            .browse_modal_title {
+                font-size: 1.15rem;
+                font-weight: 700;
+                color: #0d1b33;
+                margin: 0 0 0.5rem;
+            }
+
+            .browse_modal_text {
+                font-size: 0.875rem;
+                color: #777;
+                line-height: 1.6;
+                margin: 0 0 1.5rem;
+            }
+
+                .browse_modal_text strong {
+                    color: #0d1b33;
+                }
+
+            .browse_modal_actions {
+                display: flex;
+                gap: 0.6rem;
+            }
+
+            .browse_modal_btn {
+                flex: 1;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 0.4rem;
+                padding: 0.7rem 1rem;
+                border-radius: 6px;
+                font-family: inherit;
+                font-size: 0.78rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                cursor: pointer;
+                border: 1px solid transparent;
+                transition: background-color 0.15s ease, border-color 0.15s ease;
+            }
+
+            .browse_modal_btn_light {
+                background: #f2f2f2;
+                color: #333;
+                border-color: #f2f2f2;
+            }
+
+                .browse_modal_btn_light:hover {
+                    background: #e5ecf5;
+                    border-color: #e5ecf5;
+                }
+
+            .browse_modal_btn_primary {
+                background: #1e5aaa;
+                color: #ffffff;
+                border-color: #1e5aaa;
+            }
+
+                .browse_modal_btn_primary:hover {
+                    background: #164887;
+                    border-color: #164887;
+                }
+
+            @@media (max-width: 1000px) {
+                .browse_event_grid {
+                    grid-template-columns: repeat(2, 1fr);
+                }
+            }
+
+            @@media (max-width: 700px) {
+                .browse {
+                    padding: 1.5rem 1rem;
+                }
+
+                .browse_event_grid {
+                    grid-template-columns: 1fr;
+                }
+
+                .browse_section_head {
+                    align-items: flex-start;
+                }
+            }
+    </style>
+</head>
+<body>
+
+    <div class="browse">
+
+        <div class="browse_head">
+            <p class="browse_hello">Find a marathon</p>
+            <h1 class="browse_title">Browse marathons</h1>
+            <p class="browse_subtitle">Every category and its marathons are listed below. Join any that fits you.</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(successMsg))
+        {
+            <div class="browse_alert browse_alert_success">
+                <i class="fa fa-check-circle"></i>
+                <span>@successMsg</span>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(errorMsg))
+        {
+            <div class="browse_alert browse_alert_error">
+                <i class="fa fa-exclamation-circle"></i>
+                <span>@errorMsg</span>
+            </div>
+        }
+
+        @if (myCategories.Count == 0)
+        {
+            <div class="browse_empty">
+                <i class="fa fa-tags"></i>
+                <p class="browse_empty_title">No categories yet</p>
+                <p class="browse_empty_text">There are no categories on the platform yet. Check back soon.</p>
+            </div>
+        }
+        else
+        {
+            @foreach (var c in myCategories)
+            {
+                int catId = Convert.ToInt32(c["id"]);
+                string catName = c["name"]?.ToString() ?? "";
+                string catDesc = c["description"]?.ToString() ?? "";
+                var catEvents = allEvents.Where(e => Convert.ToInt32(e["category_id"]) == catId).ToList();
+
+                <section class="browse_section">
+                    <div class="browse_section_head">
+                        <div class="browse_section_title_group">
+                            <span class="browse_section_icon"><i class="fa fa-tags"></i></span>
+                            <div class="browse_section_text">
+                                <h2 class="browse_section_title">@catName</h2>
+                                @if (!string.IsNullOrEmpty(catDesc))
+                                {
+                                    <p class="browse_section_desc">@catDesc</p>
+                                }
+                            </div>
+                        </div>
+                        <span class="browse_section_count">@catEvents.Count marathon@(catEvents.Count == 1 ? "" : "s")</span>
+                    </div>
+
+                    @if (catEvents.Count == 0)
+                    {
+                        <div class="browse_section_empty">
+                            <i class="fa fa-flag"></i>
+                            <span>No marathons in this category yet.</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="browse_event_grid">
+                            @foreach (var ev in catEvents)
+                            {
+                                int evId = Convert.ToInt32(ev["eventID"]);
+                                string evName = ev["eventName"]?.ToString() ?? "";
+                                string evDesc = ev["description"]?.ToString() ?? "";
+                                string evDate = Convert.ToDateTime(ev["date"]).ToString("dd MMM yyyy");
+                                string evLocation = ev["location"]?.ToString() ?? "";
+                                string evDistance = ev["distance"]?.ToString() ?? "";
+                                string evType = ev["eventType"]?.ToString() ?? "";
+                                string evImage = ev["image"]?.ToString() ?? "";
+                                bool joined = myEnrolmentEventIds.Contains(evId);
+
+                                <article class="browse_event_card">
+                                    <div class="browse_event_image">
+                                        <img class="browse_event_img"
+                                             src="@evImage"
+                                             alt="@evName"
+                                             onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1552674605-db6ffd4facb5?auto=format&fit=crop&w=800&q=80';">
+                                    </div>
+
+                                    <div class="browse_event_body">
+                                        <span class="browse_event_type">@evType</span>
+                                        <h3 class="browse_event_title">@evName</h3>
+                                        @if (!string.IsNullOrEmpty(evDesc))
+                                        {
+                                            <p class="browse_event_text">@evDesc</p>
+                                        }
+
+                                        <ul class="browse_event_meta">
+                                            <li><i class="fa fa-calendar"></i><span>@evDate</span></li>
+                                            <li><i class="fa fa-map-marker"></i><span>@evLocation</span></li>
+                                            <li><i class="fa fa-road"></i><span>@evDistance km</span></li>
+                                        </ul>
+
+                                        <div class="browse_event_footer">
+                                            @if (joined)
+                                            {
+                                                <span class="browse_event_status browse_event_status_joined"><i class="fa fa-check-circle"></i> Joined</span>
+                                                <span class="browse_join_done"><i class="fa fa-check"></i></span>
+                                            }
+                                            else
+                                            {
+                                                <span class="browse_event_status browse_event_status_open"><i class="fa fa-clock-o"></i> Open</span>
+                                                <button type="button" class="browse_join_btn"
+                                                        data-event-id="@evId"
+                                                        data-event-name="@evName"
+                                                        onclick="openJoinModal(this)">
+                                                    <i class="fa fa-plus"></i>
+                                                    <span>Join</span>
+                                                </button>
+                                            }
+                                        </div>
+                                    </div>
+                                </article>
+                            }
+                        </div>
+                    }
+                </section>
+            }
+        }
+
+    </div>
+
+    <div class="browse_modal" id="joinModal">
+        <div class="browse_modal_box">
+            <button type="button" class="browse_modal_close" onclick="closeJoinModal()" aria-label="Close">
+                <i class="fa fa-times"></i>
+            </button>
+
+            <div class="browse_modal_icon">
+                <i class="fa fa-flag-checkered"></i>
+            </div>
+            <h3 class="browse_modal_title">Join this marathon?</h3>
+            <p class="browse_modal_text">You are about to join <strong id="joinEventName">this marathon</strong>. You can cancel your enrolment later from your dashboard.</p>
+
+            <form method="post">
+                <input type="hidden" name="formAction" value="join">
+                <input type="hidden" name="eventId" id="joinEventId" value="0">
+
+                <div class="browse_modal_actions">
+                    <button type="button" class="browse_modal_btn browse_modal_btn_light" onclick="closeJoinModal()">Cancel</button>
+                    <button type="submit" class="browse_modal_btn browse_modal_btn_primary">
+                        <i class="fa fa-check"></i> Join marathon
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+            (function () {
+                const joinModal = document.getElementById('joinModal');
+
+                window.openJoinModal = function (btn) {
+                    document.getElementById('joinEventId').value = btn.getAttribute('data-event-id');
+                    document.getElementById('joinEventName').textContent = btn.getAttribute('data-event-name');
+                    joinModal.classList.add('browse_modal_open');
+                };
+
+                window.closeJoinModal = function () {
+                    joinModal.classList.remove('browse_modal_open');
+                };
+
+                joinModal.addEventListener('click', function (e) {
+                    if (e.target === joinModal) closeJoinModal();
+                });
+
+                document.addEventListener('keydown', function (e) {
+                    if (e.key === 'Escape') closeJoinModal();
+                });
+            })();
+    </script>
+
+</body>
+</html>

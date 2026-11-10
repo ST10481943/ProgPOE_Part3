@@ -1,0 +1,258 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+    Layout = null;
+    var userName = Context.Session.GetString("user_name") ?? "";
+    var isLoggedIn = !string.IsNullOrEmpty(userName);
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/menu.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/footer.css" asp-append-version="true" />
+</head>
+<body>
+
+    <nav class="menu" aria-label="Main navigation">
+        <div class="menu_inner">
+            <a class="menu_brand" href="/">
+                <img src="~/images/logo.png" alt="Logo" class="menu_logo">
+            </a>
+
+            <button class="menu_toggle" id="menuToggle" aria-label="Toggle menu" aria-expanded="false" aria-controls="menuList">
+                <i class="fa fa-bars"></i>
+            </button>
+
+            <ul class="menu_list" id="menuList">
+                <li class="menu_item">
+                    <a class="menu_link" href="/"><i class="fa fa-home"></i><span>Home</span></a>
+                </li>
+                <li class="menu_item">
+                    <a class="menu_link" href="/Home/about"><i class="fa fa-info-circle"></i><span>About</span></a>
+                </li>
+                <li class="menu_item">
+                    <a class="menu_link" href="/Home/events"><i class="fa fa-flag"></i><span>Marathons</span></a>
+                </li>
+                <li class="menu_item">
+                    <a class="menu_link" href="/Home/contact"><i class="fa fa-envelope"></i><span>Contact</span></a>
+                </li>
+                <li class="menu_item">
+                    <a class="menu_link" href="/Home/login"><i class="fa fa-sign-in"></i><span>Login</span></a>
+                </li>
+                <li class="menu_item">
+                    <a class="menu_link menu_link_accent" href="/Home/register"><i class="fa fa-user-plus"></i><span>Register</span></a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <main class="home_page">
+
+        <section class="home_intro">
+            <div class="home_intro_overlay"></div>
+            <div class="home_intro_content">
+                <h1 class="home_title">Every race starts<br>with a single step.</h1>
+                <p class="home_subtitle">
+                    Organizers build marathons with their own categories.
+                    Participants join, pick a category, and run.
+                </p>
+                <div class="home_actions">
+                    @if (isLoggedIn)
+                    {
+                        <a class="home_btn home_btn_primary" href="/Home/dashboard">
+                            <i class="fa fa-th-large"></i>
+                            <span>Go to dashboard</span>
+                        </a>
+                        <a class="home_btn home_btn_outline" href="/Home/events">
+                            <i class="fa fa-flag"></i>
+                            <span>Browse marathons</span>
+                        </a>
+                    }
+                    else
+                    {
+                        <a class="home_btn home_btn_primary" href="/Home/register">
+                            <i class="fa fa-user-plus"></i>
+                            <span>Get started</span>
+                        </a>
+                        <a class="home_btn home_btn_outline" href="/login">
+                            <i class="fa fa-sign-in"></i>
+                            <span>Log in</span>
+                        </a>
+                    }
+                </div>
+                <div class="home_strip">
+                    <div class="home_strip_item">
+                        <i class="fa fa-flag"></i>
+                        <span>Create marathons</span>
+                    </div>
+                    <div class="home_strip_item">
+                        <i class="fa fa-tags"></i>
+                        <span>Custom categories</span>
+                    </div>
+                    <div class="home_strip_item">
+                        <i class="fa fa-users"></i>
+                        <span>Join as participant</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="home_about">
+            <div class="home_about_grid">
+                <div class="home_about_image">
+                    <img src="https://th.bing.com/th/id/R.c701f607c0f1f03b4d95975d7d6ffead?rik=i1tzped3VhEEnQ&pid=ImgRaw&r=0" alt="Runners at the start line of a road race">
+                </div>
+                <div class="home_about_text">
+                    <span class="home_section_label">What this is</span>
+                    <h2 class="home_section_title">One place to run<br>a marathon end to end.</h2>
+                    <p class="home_section_text">
+                        Most organizers run their marathons across spreadsheets, email threads,
+                        and half a dozen sign-up tools. This platform puts all of that in one place:
+                        the marathon, its categories, the people who joined, and the results when they cross the line.
+                    </p>
+                    <a class="home_link" href="/about">
+                        <span>Read the full story</span>
+                        <i class="fa fa-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <section class="home_steps">
+            <div class="home_section_head">
+                <span class="home_section_label">The flow</span>
+                <h2 class="home_section_title">Four steps from idea to finish line.</h2>
+            </div>
+
+            <div class="home_steps_grid">
+                <div class="home_step">
+                    <span class="home_step_num">01</span>
+                    <h3 class="home_step_title">Set it up</h3>
+                    <p class="home_step_text">
+                        An organizer creates the marathon and defines the categories runners can choose from.
+                    </p>
+                </div>
+                <div class="home_step">
+                    <span class="home_step_num">02</span>
+                    <h3 class="home_step_title">Open it</h3>
+                    <p class="home_step_text">
+                        The marathon becomes visible on the platform. Registration is open from day one.
+                    </p>
+                </div>
+                <div class="home_step">
+                    <span class="home_step_num">03</span>
+                    <h3 class="home_step_title">Join in</h3>
+                    <p class="home_step_text">
+                        Runners browse the marathon, pick their category, and join in a single step.
+                    </p>
+                </div>
+                <div class="home_step">
+                    <span class="home_step_num">04</span>
+                    <h3 class="home_step_title">Log it</h3>
+                    <p class="home_step_text">
+                        After race day, finish times and positions are recorded and ready for everyone to see.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="footer">
+        <div class="footer_inner">
+
+            <div class="footer_middle">
+                <div class="footer_col">
+                    <h4 class="footer_col_title">Explore</h4>
+                    <ul class="footer_list">
+                        <li><a class="footer_link" href="/">Home</a></li>
+                        <li><a class="footer_link" href="/Home/about">About</a></li>
+                        <li><a class="footer_link" href="/Home/events">Marathons</a></li>
+                        <li><a class="footer_link" href="/Home/contact">Contact</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer_col">
+                    <h4 class="footer_col_title">Your account</h4>
+                    <ul class="footer_list">
+                        <li><a class="footer_link" href="/Home/login">Log in</a></li>
+                        <li><a class="footer_link" href="/Home/register">Create account</a></li>
+                        <li><a class="footer_link" href="/Home/dashboard">Dashboard</a></li>
+                    </ul>
+                </div>
+
+                <div class="footer_col">
+                    <h4 class="footer_col_title">Get in touch</h4>
+                    <ul class="footer_list footer_list_contact">
+                        <li><i class="fa fa-map-marker"></i> Johannesburg, South Africa</li>
+                        <li><i class="fa fa-phone"></i> +27 11 234 5678</li>
+                        <li><i class="fa fa-envelope"></i> hello@example.com</li>
+                    </ul>
+                </div>
+
+                <div class="footer_col">
+                    <h4 class="footer_col_title">Follow</h4>
+                    <div class="footer_socials">
+                        <a class="footer_social" href="#" aria-label="Facebook"><i class="fa fa-facebook"></i></a>
+                        <a class="footer_social" href="#" aria-label="Twitter"><i class="fa fa-twitter"></i></a>
+                        <a class="footer_social" href="#" aria-label="Instagram"><i class="fa fa-instagram"></i></a>
+                        <a class="footer_social" href="#" aria-label="YouTube"><i class="fa fa-youtube-play"></i></a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer_bottom">
+                <p class="footer_copy">© 2026 Marathon. All rights reserved.</p>
+                <ul class="footer_legal">
+                    <li><a class="footer_link" href="/privacy">Privacy</a></li>
+                    <li><a class="footer_link" href="/terms">Terms</a></li>
+                </ul>
+            </div>
+
+        </div>
+    </footer>
+
+    <script>
+            (function () {
+                const toggle = document.getElementById('menuToggle');
+                const list = document.getElementById('menuList');
+                if (!toggle || !list) return;
+
+                toggle.addEventListener('click', function () {
+                    const isOpen = list.classList.toggle('is_open');
+                    toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+
+                    const icon = toggle.querySelector('i');
+                    if (icon) {
+                        icon.className = isOpen ? 'fa fa-times' : 'fa fa-bars';
+                    }
+                });
+
+                list.querySelectorAll('.menu_link').forEach(function (link) {
+                    link.addEventListener('click', function () {
+                        if (window.innerWidth <= 768) {
+                            list.classList.remove('is_open');
+                            toggle.setAttribute('aria-expanded', 'false');
+                            const icon = toggle.querySelector('i');
+                            if (icon) icon.className = 'fa fa-bars';
+                        }
+                    });
+                });
+
+                window.addEventListener('resize', function () {
+                    if (window.innerWidth > 768) {
+                        list.classList.remove('is_open');
+                        toggle.setAttribute('aria-expanded', 'false');
+                        const icon = toggle.querySelector('i');
+                        if (icon) icon.className = 'fa fa-bars';
+                    }
+                });
+            })();
+    </script>
+
+</body>
+</html>

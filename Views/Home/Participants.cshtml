@@ -1,0 +1,1372 @@
+﻿@using System.Data.SqlClient
+@using API_template.backend
+
+@{
+    Layout = null;
+    var userName = Context.Session.GetString("user_name") ?? "User";
+    var userId = Context.Session.GetString("user_id") ?? "0";
+    int organizer_id = Int32.Parse(userId);
+
+    manage_events events_manager = new manage_events();
+    manage_categories categories_manager = new manage_categories();
+    manage_results results_manager = new manage_results();
+
+    string successMsg = TempData["ResultSuccess"] as string;
+    string errorMsg = TempData["ResultError"] as string;
+
+    if (Context.Request.Method == "POST")
+    {
+        string action = Context.Request.Form["formAction"].ToString().Trim();
+
+        if (action == "record")
+        {
+            string enrolmentIdRaw = Context.Request.Form["enrolmentId"].ToString().Trim();
+            string finishTimeRaw = Context.Request.Form["finishTime"].ToString().Trim();
+            string finishPositionRaw = Context.Request.Form["finishPosition"].ToString().Trim();
+
+            int enrolmentId;
+            TimeSpan finishTime;
+            int finishPosition;
+
+            if (!int.TryParse(enrolmentIdRaw, out enrolmentId) || enrolmentId <= 0)
+            {
+                errorMsg = "Invalid enrolment selected.";
+            }
+            else if (!TimeSpan.TryParse(finishTimeRaw, out finishTime))
+            {
+                errorMsg = "Please enter a valid finish time.";
+            }
+            else if (!int.TryParse(finishPositionRaw, out finishPosition) || finishPosition <= 0)
+            {
+                errorMsg = "Please enter a valid finish position.";
+            }
+            else
+            {
+                string result = results_manager.store_result(
+                    enrolmentId,
+                    finishTime,
+                    finishPosition,
+                    organizer_id.ToString(),
+                    Context);
+
+                if (result.Contains("successfully"))
+                {
+                    TempData["ResultSuccess"] = result;
+                }
+                else
+                {
+                    TempData["ResultError"] = result;
+                }
+
+                Context.Response.Redirect(Context.Request.Path);
+                return;
+            }
+        }
+        else if (action == "update")
+        {
+            string resultIdRaw = Context.Request.Form["resultId"].ToString().Trim();
+            string finishTimeRaw = Context.Request.Form["finishTime"].ToString().Trim();
+            string finishPositionRaw = Context.Request.Form["finishPosition"].ToString().Trim();
+
+            int resultId;
+            TimeSpan finishTime;
+            int finishPosition;
+
+            if (!int.TryParse(resultIdRaw, out resultId) || resultId <= 0)
+            {
+                errorMsg = "Invalid result selected.";
+            }
+            else if (!TimeSpan.TryParse(finishTimeRaw, out finishTime))
+            {
+                errorMsg = "Please enter a valid finish time.";
+            }
+            else if (!int.TryParse(finishPositionRaw, out finishPosition) || finishPosition <= 0)
+            {
+                errorMsg = "Please enter a valid finish position.";
+            }
+            else
+            {
+                string result = results_manager.updating_results(
+                    resultId,
+                    finishTime,
+                    finishPosition,
+                    organizer_id.ToString(),
+                    Context);
+
+                if (result.Contains("successfully"))
+                {
+                    TempData["ResultSuccess"] = result;
+                }
+                else
+                {
+                    TempData["ResultError"] = result;
+                }
+
+                Context.Response.Redirect(Context.Request.Path);
+                return;
+            }
+        }
+        else if (action == "delete")
+        {
+            string resultIdRaw = Context.Request.Form["resultId"].ToString().Trim();
+
+            int resultId;
+
+            if (!int.TryParse(resultIdRaw, out resultId) || resultId <= 0)
+            {
+                errorMsg = "Invalid result selected.";
+            }
+            else
+            {
+                string result = results_manager.deleting_results(
+                    resultId,
+                    organizer_id.ToString(),
+                    Context);
+
+                if (result.Contains("successfully"))
+                {
+                    TempData["ResultSuccess"] = result;
+                }
+                else
+                {
+                    TempData["ResultError"] = result;
+                }
+
+                Context.Response.Redirect(Context.Request.Path);
+                return;
+            }
+        }
+    }
+
+    var myEvents = new List<Dictionary<string, object>>();
+    var myCategories = new List<Dictionary<string, object>>();
+    var allEnrolments = new List<Dictionary<string, object>>();
+
+    SqlDataReader read_events = events_manager.view_eventsSite(organizer_id);
+    try
+    {
+        while (read_events.Read())
+        {
+            myEvents.Add(new Dictionary<string, object>
+            {
+                { "eventID", read_events["eventID"] },
+                { "eventName", read_events["eventName"] },
+                { "date", read_events["date"] },
+                { "location", read_events["location"] },
+                { "eventType", read_events["eventType"] },
+                { "category_id", read_events["category_id"] },
+                { "image", read_events["image"] }
+            });
+        }
+    }
+    finally { read_events.Close(); }
+
+    SqlDataReader read_categories = categories_manager.view_categoriesSite(organizer_id);
+    try
+    {
+        while (read_categories.Read())
+        {
+            myCategories.Add(new Dictionary<string, object>
+            {
+                { "id", read_categories["id"] },
+                { "name", read_categories["name"] }
+            });
+        }
+    }
+    finally { read_categories.Close(); }
+
+    foreach (var ev in myEvents)
+    {
+        int evId = Convert.ToInt32(ev["eventID"]);
+        SqlDataReader read_enrolments = results_manager.view_enrolments_by_eventSite(evId, organizer_id);
+
+        try
+        {
+            while (read_enrolments.Read())
+            {
+                bool hasResult = read_enrolments["resultID"] != DBNull.Value;
+
+                allEnrolments.Add(new Dictionary<string, object>
+                {
+                    { "eventID", evId },
+                    { "enrolmentID", read_enrolments["enrolmentID"] },
+                    { "enrolmentDate", read_enrolments["enrolmentDate"] },
+                    { "fullname", read_enrolments["fullname"] },
+                    { "email", read_enrolments["email"] },
+                    { "resultID", hasResult ? read_enrolments["resultID"] : DBNull.Value },
+                    { "finishTime", hasResult ? read_enrolments["finishTime"] : DBNull.Value },
+                    { "finishPosition", hasResult ? read_enrolments["finishPosition"] : DBNull.Value }
+                });
+            }
+        }
+        finally { read_enrolments.Close(); }
+    }
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            html, body {
+                width: 100%;
+                background: #ffffff;
+            }
+
+            body {
+                font-family: 'Inter', 'Poppins', system-ui, sans-serif;
+                background: #ffffff;
+                color: #333;
+            }
+
+            .myevents {
+                padding: 2rem 2.5rem;
+                width: 100%;
+                min-height: 100vh;
+            }
+
+            .myevents_head {
+                margin: 0 0 2rem;
+            }
+
+            .myevents_hello {
+                font-size: 0.75rem;
+                font-weight: 700;
+                color: #1e5aaa;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                margin: 0 0 0.35rem;
+            }
+
+            .myevents_title {
+                font-size: 1.75rem;
+                font-weight: 700;
+                color: #0d1b33;
+                letter-spacing: -0.5px;
+                margin: 0 0 0.35rem;
+            }
+
+            .myevents_subtitle {
+                font-size: 0.9rem;
+                color: #777;
+                margin: 0;
+                max-width: 640px;
+            }
+
+            .myevents_alert {
+                display: flex;
+                align-items: flex-start;
+                gap: 0.6rem;
+                padding: 1rem 1.25rem;
+                border-radius: 8px;
+                font-size: 0.9rem;
+                margin-bottom: 1.5rem;
+                line-height: 1.5;
+            }
+
+                .myevents_alert i {
+                    font-size: 1.05rem;
+                    flex-shrink: 0;
+                    margin-top: 2px;
+                }
+
+            .myevents_alert_success {
+                background: #eefaf1;
+                border: 1px solid #b6e3c3;
+                color: #1b7a3e;
+            }
+
+            .myevents_alert_error {
+                background: #fbeaea;
+                border: 1px solid #f5c5c5;
+                color: #c0392b;
+            }
+
+            .myevents_empty {
+                background: #ffffff;
+                border: 1px dashed #dbe6f5;
+                border-radius: 10px;
+                padding: 3rem 1.5rem;
+                text-align: center;
+                color: #777;
+            }
+
+                .myevents_empty i {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: 48px;
+                    height: 48px;
+                    border-radius: 50%;
+                    background: #eef4fc;
+                    color: #1e5aaa;
+                    font-size: 1.2rem;
+                    margin-bottom: 0.75rem;
+                }
+
+            .myevents_empty_title {
+                font-size: 0.95rem;
+                font-weight: 700;
+                color: #0d1b33;
+                margin: 0 0 0.35rem;
+            }
+
+            .myevents_empty_text {
+                font-size: 0.85rem;
+                color: #777;
+                margin: 0;
+                line-height: 1.6;
+            }
+
+            .myevents_section {
+                margin-bottom: 2.5rem;
+                background: #ffffff;
+                border: 1px solid #e5ecf5;
+                border-radius: 12px;
+                overflow: hidden;
+            }
+
+            .myevents_section_head {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 1rem;
+                padding: 1.1rem 1.5rem;
+                background: #f7f9fc;
+                border-bottom: 1px solid #eef4fc;
+                flex-wrap: wrap;
+            }
+
+            .myevents_section_title_group {
+                display: flex;
+                align-items: center;
+                gap: 0.85rem;
+            }
+
+            .myevents_section_icon {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 40px;
+                height: 40px;
+                border-radius: 8px;
+                background: #eef4fc;
+                color: #1e5aaa;
+                font-size: 1rem;
+                flex-shrink: 0;
+            }
+
+            .myevents_section_title {
+                font-size: 1.05rem;
+                font-weight: 700;
+                color: #0d1b33;
+                letter-spacing: -0.3px;
+                margin: 0;
+            }
+
+            .myevents_section_count {
+                font-size: 0.72rem;
+                color: #6b8bb8;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                font-weight: 600;
+                margin: 0.2rem 0 0;
+            }
+
+            .myevents_section_empty {
+                display: flex;
+                align-items: center;
+                gap: 0.6rem;
+                padding: 1.25rem 1.5rem;
+                color: #777;
+                font-size: 0.85rem;
+            }
+
+                .myevents_section_empty i {
+                    color: #1e5aaa;
+                    font-size: 1rem;
+                }
+
+            .myevents_event_list {
+                display: flex;
+                flex-direction: column;
+            }
+
+            .myevents_event {
+                display: flex;
+                align-items: center;
+                gap: 1rem;
+                padding: 0.9rem 1.5rem;
+                border-bottom: 1px solid #eef4fc;
+                background: #ffffff;
+                transition: background-color 0.15s ease;
+                flex-wrap: wrap;
+            }
+
+                .myevents_event:last-child {
+                    border-bottom: none;
+                }
+
+                .myevents_event:hover {
+                    background: #f7f9fc;
+                }
+
+            .myevents_event_open {
+                background: #eef4fc;
+            }
+
+                .myevents_event_open:hover {
+                    background: #eef4fc;
+                }
+
+            .myevents_event_image {
+                width: 56px;
+                height: 56px;
+                border-radius: 8px;
+                overflow: hidden;
+                background: #eef4fc;
+                flex-shrink: 0;
+            }
+
+                .myevents_event_image img {
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                    display: block;
+                }
+
+            .myevents_event_main {
+                flex: 1;
+                min-width: 0;
+                display: flex;
+                flex-direction: column;
+                gap: 0.3rem;
+            }
+
+            .myevents_event_top {
+                display: flex;
+                align-items: center;
+                gap: 0.6rem;
+                flex-wrap: wrap;
+            }
+
+            .myevents_event_type {
+                font-size: 0.68rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                color: #1e5aaa;
+                background: #eef4fc;
+                border-radius: 5px;
+                padding: 0.2rem 0.5rem;
+            }
+
+            .myevents_event_open .myevents_event_type {
+                background: #ffffff;
+            }
+
+            .myevents_event_name {
+                font-size: 0.95rem;
+                font-weight: 700;
+                color: #0d1b33;
+                margin: 0;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                max-width: 100%;
+            }
+
+            .myevents_event_meta {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.35rem 1rem;
+            }
+
+            .myevents_event_meta_item {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.3rem;
+                font-size: 0.78rem;
+                color: #555;
+            }
+
+                .myevents_event_meta_item i {
+                    color: #6b8bb8;
+                    font-size: 0.78rem;
+                }
+
+            .myevents_event_actions {
+                display: inline-flex;
+                gap: 0.35rem;
+                flex-shrink: 0;
+            }
+
+            .myevents_action_btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 0.35rem;
+                padding: 0.5rem 0.9rem;
+                border-radius: 6px;
+                font-family: inherit;
+                font-size: 0.72rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                cursor: pointer;
+                border: 1px solid transparent;
+                transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+                white-space: nowrap;
+            }
+
+            .myevents_action_toggle {
+                background: #ffffff;
+                color: #1e5aaa;
+                border-color: #dbe6f5;
+            }
+
+                .myevents_action_toggle:hover {
+                    background: #eef4fc;
+                    border-color: #1e5aaa;
+                }
+
+            .myevents_action_toggle_active {
+                background: #1e5aaa;
+                color: #ffffff;
+                border-color: #1e5aaa;
+            }
+
+                .myevents_action_toggle_active:hover {
+                    background: #164887;
+                    border-color: #164887;
+                }
+
+            .myevents_action_toggle .myevents_chevron {
+                transition: transform 0.2s ease;
+                font-size: 0.7rem;
+            }
+
+            .myevents_action_toggle_active .myevents_chevron {
+                transform: rotate(180deg);
+            }
+
+            .myevents_participants {
+                display: none;
+                background: #f7f9fc;
+                border-top: 1px solid #eef4fc;
+                padding: 1.25rem 1.5rem 1.5rem;
+            }
+
+            .myevents_participants_open {
+                display: block;
+            }
+
+            .myevents_participants_head {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 1rem;
+                margin-bottom: 1rem;
+                flex-wrap: wrap;
+            }
+
+            .myevents_participants_title {
+                font-size: 0.82rem;
+                font-weight: 700;
+                color: #0d1b33;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+
+            .myevents_participants_count {
+                font-size: 0.72rem;
+                color: #6b8bb8;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+
+            .myevents_participants_empty {
+                display: flex;
+                align-items: center;
+                gap: 0.6rem;
+                padding: 1.25rem;
+                background: #ffffff;
+                border: 1px dashed #dbe6f5;
+                border-radius: 8px;
+                color: #777;
+                font-size: 0.85rem;
+            }
+
+                .myevents_participants_empty i {
+                    color: #1e5aaa;
+                }
+
+            .myevents_table_wrap {
+                width: 100%;
+                overflow-x: auto;
+                background: #ffffff;
+                border: 1px solid #e5ecf5;
+                border-radius: 8px;
+            }
+
+            .myevents_table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 0.85rem;
+            }
+
+                .myevents_table thead {
+                    background: #ffffff;
+                    text-align: left;
+                    border-bottom: 1px solid #eef4fc;
+                }
+
+                .myevents_table th {
+                    padding: 0.75rem 1rem;
+                    font-size: 0.68rem;
+                    font-weight: 700;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    color: #6b8bb8;
+                    white-space: nowrap;
+                }
+
+                .myevents_table td {
+                    padding: 0.75rem 1rem;
+                    border-top: 1px solid #eef4fc;
+                    color: #555;
+                    vertical-align: middle;
+                }
+
+                .myevents_table tbody tr:first-child td {
+                    border-top: none;
+                }
+
+                .myevents_table tbody tr:hover {
+                    background: #f7f9fc;
+                }
+
+            .myevents_id_cell {
+                font-family: 'SF Mono', Menlo, monospace;
+                font-size: 0.78rem;
+                color: #6b8bb8;
+                width: 40px;
+            }
+
+            .myevents_name_cell {
+                display: flex;
+                align-items: center;
+                gap: 0.65rem;
+                font-weight: 600;
+                color: #0d1b33;
+            }
+
+            .myevents_name_icon {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 30px;
+                height: 30px;
+                border-radius: 50%;
+                background: #eef4fc;
+                color: #1e5aaa;
+                font-size: 0.78rem;
+                flex-shrink: 0;
+            }
+
+            .myevents_badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.3rem;
+                font-size: 0.68rem;
+                font-weight: 700;
+                padding: 0.22rem 0.55rem;
+                border-radius: 5px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                white-space: nowrap;
+            }
+
+            .myevents_badge_finished {
+                background: #eefaf1;
+                color: #1b7a3e;
+            }
+
+            .myevents_badge_pending {
+                background: #eef4fc;
+                color: #1e5aaa;
+            }
+
+            .myevents_row_actions {
+                display: inline-flex;
+                gap: 0.35rem;
+            }
+
+            .myevents_action_record {
+                background: #1e5aaa;
+                color: #ffffff;
+                border-color: #1e5aaa;
+            }
+
+                .myevents_action_record:hover {
+                    background: #164887;
+                    border-color: #164887;
+                }
+
+            .myevents_action_edit {
+                background: #f2f2f2;
+                color: #333;
+                border-color: #f2f2f2;
+            }
+
+                .myevents_action_edit:hover {
+                    background: #333;
+                    color: #ffffff;
+                    border-color: #333;
+                }
+
+            .myevents_action_delete {
+                background: #fbeaea;
+                color: #c0392b;
+                border-color: #fbeaea;
+            }
+
+                .myevents_action_delete:hover {
+                    background: #c0392b;
+                    color: #ffffff;
+                    border-color: #c0392b;
+                }
+
+            .myevents_action_btn_sm {
+                width: 32px;
+                height: 32px;
+                padding: 0;
+                border-radius: 50%;
+            }
+
+            .myevents_modal {
+                position: fixed;
+                inset: 0;
+                display: none;
+                align-items: center;
+                justify-content: center;
+                background-color: rgba(13, 27, 51, 0.55);
+                z-index: 500;
+                padding: 1rem;
+                overflow-y: auto;
+            }
+
+            .myevents_modal_open {
+                display: flex;
+            }
+
+            .myevents_modal_box {
+                position: relative;
+                width: 100%;
+                max-width: 460px;
+                background: #ffffff;
+                border-radius: 12px;
+                box-shadow: 0 24px 60px rgba(13, 27, 51, 0.25);
+                margin: auto;
+                overflow: hidden;
+                padding: 2rem;
+                animation: myevents_pop 0.18s ease-out;
+            }
+
+            @@keyframes myevents_pop {
+                from {
+                    opacity: 0;
+                    transform: translateY(8px) scale(0.98);
+                }
+
+                to {
+                    opacity: 1;
+                    transform: translateY(0) scale(1);
+                }
+            }
+
+            .myevents_modal_close {
+                position: absolute;
+                top: 0.85rem;
+                right: 0.85rem;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 32px;
+                height: 32px;
+                border: none;
+                border-radius: 50%;
+                background: #f2f2f2;
+                color: #333;
+                font-size: 0.85rem;
+                cursor: pointer;
+                transition: background-color 0.15s ease, color 0.15s ease;
+            }
+
+                .myevents_modal_close:hover {
+                    background: #c0392b;
+                    color: #ffffff;
+                }
+
+            .myevents_modal_title {
+                font-size: 1.15rem;
+                font-weight: 700;
+                color: #0d1b33;
+                margin: 0 0 0.4rem;
+                letter-spacing: -0.3px;
+            }
+
+            .myevents_modal_text {
+                font-size: 0.85rem;
+                color: #777;
+                line-height: 1.6;
+                margin: 0 0 1.5rem;
+            }
+
+                .myevents_modal_text strong {
+                    color: #0d1b33;
+                }
+
+            .myevents_field {
+                display: flex;
+                flex-direction: column;
+                gap: 0.35rem;
+                margin-bottom: 1rem;
+            }
+
+            .myevents_label {
+                font-size: 0.72rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                color: #6b8bb8;
+            }
+
+            .myevents_input {
+                width: 100%;
+                padding: 0.65rem 0.8rem;
+                font-family: inherit;
+                font-size: 0.875rem;
+                color: #0d1b33;
+                background: #ffffff;
+                border: 1px solid #e5ecf5;
+                border-radius: 6px;
+                outline: none;
+                box-sizing: border-box;
+                transition: border-color 0.15s ease, box-shadow 0.15s ease;
+            }
+
+                .myevents_input:focus {
+                    border-color: #1e5aaa;
+                    box-shadow: 0 0 0 3px rgba(30, 90, 170, 0.12);
+                }
+
+            .myevents_modal_actions {
+                display: flex;
+                gap: 0.6rem;
+                margin-top: 1.5rem;
+            }
+
+            .myevents_modal_btn {
+                flex: 1;
+                padding: 0.7rem 1rem;
+                border-radius: 6px;
+                font-family: inherit;
+                font-size: 0.78rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                cursor: pointer;
+                border: 1px solid transparent;
+                transition: background-color 0.15s ease, border-color 0.15s ease;
+            }
+
+            .myevents_modal_btn_light {
+                background: #f2f2f2;
+                color: #333;
+                border-color: #f2f2f2;
+            }
+
+                .myevents_modal_btn_light:hover {
+                    background: #e5ecf5;
+                    border-color: #e5ecf5;
+                }
+
+            .myevents_modal_btn_primary {
+                background: #1e5aaa;
+                color: #ffffff;
+                border-color: #1e5aaa;
+            }
+
+                .myevents_modal_btn_primary:hover {
+                    background: #164887;
+                    border-color: #164887;
+                }
+
+            .myevents_modal_btn_danger {
+                background: #c0392b;
+                color: #ffffff;
+                border-color: #c0392b;
+            }
+
+                .myevents_modal_btn_danger:hover {
+                    background: #a53224;
+                    border-color: #a53224;
+                }
+
+            @@media (max-width: 900px) {
+                .myevents_event_name {
+                    white-space: normal;
+                }
+            }
+
+            @@media (max-width: 700px) {
+                .myevents {
+                    padding: 1.5rem 1rem;
+                }
+
+                .myevents_event {
+                    padding: 0.9rem 1rem;
+                }
+
+                .myevents_section_head {
+                    padding: 1rem;
+                }
+
+                .myevents_participants {
+                    padding: 1rem;
+                }
+
+                .myevents_table thead {
+                    display: none;
+                }
+
+                .myevents_table, .myevents_table tbody, .myevents_table tr, .myevents_table td {
+                    display: block;
+                    width: 100%;
+                }
+
+                .myevents_table {
+                    border: none;
+                    background: transparent;
+                }
+
+                    .myevents_table tbody tr {
+                        background: #ffffff;
+                        border: 1px solid #e5ecf5;
+                        border-radius: 8px;
+                        margin-bottom: 0.6rem;
+                        padding: 0.4rem 0;
+                    }
+
+                    .myevents_table td {
+                        border-top: none;
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        gap: 1rem;
+                        padding: 0.4rem 0.9rem;
+                    }
+
+                        .myevents_table td::before {
+                            content: attr(data-label);
+                            font-size: 0.65rem;
+                            font-weight: 700;
+                            text-transform: uppercase;
+                            letter-spacing: 0.5px;
+                            color: #6b8bb8;
+                            flex-shrink: 0;
+                        }
+
+                        .myevents_table td.myevents_id_cell {
+                            display: none;
+                        }
+
+                .myevents_row_actions {
+                    justify-content: flex-end;
+                }
+            }
+    </style>
+</head>
+<body>
+
+    <div class="myevents">
+
+        <div class="myevents_head">
+            <p class="myevents_hello">Results</p>
+            <h1 class="myevents_title">Participants &amp; results</h1>
+            <p class="myevents_subtitle">Every category and its events are listed below. Click an event to see its participants and manage results.</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(successMsg))
+        {
+            <div class="myevents_alert myevents_alert_success">
+                <i class="fa fa-check-circle"></i>
+                <span>@successMsg</span>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(errorMsg))
+        {
+            <div class="myevents_alert myevents_alert_error">
+                <i class="fa fa-exclamation-circle"></i>
+                <span>@errorMsg</span>
+            </div>
+        }
+
+        @if (myCategories.Count == 0)
+        {
+            <div class="myevents_empty">
+                <i class="fa fa-tags"></i>
+                <p class="myevents_empty_title">No categories yet</p>
+                <p class="myevents_empty_text">Create a category and events before managing participants.</p>
+            </div>
+        }
+        else
+        {
+            @foreach (var c in myCategories)
+            {
+                int catId = Convert.ToInt32(c["id"]);
+                string catName = c["name"]?.ToString() ?? "";
+                var catEvents = myEvents.Where(e => Convert.ToInt32(e["category_id"]) == catId).ToList();
+
+                <section class="myevents_section">
+                    <div class="myevents_section_head">
+                        <div class="myevents_section_title_group">
+                            <span class="myevents_section_icon"><i class="fa fa-tags"></i></span>
+                            <div>
+                                <h2 class="myevents_section_title">@catName</h2>
+                                <p class="myevents_section_count">@catEvents.Count event@(catEvents.Count == 1 ? "" : "s")</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (catEvents.Count == 0)
+                    {
+                        <div class="myevents_section_empty">
+                            <i class="fa fa-flag"></i>
+                            <span>No events in this category yet.</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="myevents_event_list">
+                            @foreach (var ev in catEvents)
+                            {
+                                int evId = Convert.ToInt32(ev["eventID"]);
+                                string evName = ev["eventName"]?.ToString() ?? "";
+                                string evDate = Convert.ToDateTime(ev["date"]).ToString("dd MMM yyyy");
+                                string evLocation = ev["location"]?.ToString() ?? "";
+                                string evType = ev["eventType"]?.ToString() ?? "";
+                                string evImage = ev["image"]?.ToString() ?? "";
+                                var evEnrolments = allEnrolments.Where(en => Convert.ToInt32(en["eventID"]) == evId).ToList();
+
+                                <div class="myevents_event" data-event-id="@evId">
+                                    <div class="myevents_event_image">
+                                        <img src="@evImage" alt="@evName"
+                                             onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1552674605-db6ffd4facb5?auto=format&fit=crop&w=800&q=80';">
+                                    </div>
+
+                                    <div class="myevents_event_main">
+                                        <div class="myevents_event_top">
+                                            <span class="myevents_event_type">@evType</span>
+                                            <h3 class="myevents_event_name">@evName</h3>
+                                        </div>
+                                        <div class="myevents_event_meta">
+                                            <span class="myevents_event_meta_item"><i class="fa fa-calendar"></i> @evDate</span>
+                                            <span class="myevents_event_meta_item"><i class="fa fa-map-marker"></i> @evLocation</span>
+                                            <span class="myevents_event_meta_item"><i class="fa fa-users"></i> @evEnrolments.Count participant@(evEnrolments.Count == 1 ? "" : "s")</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="myevents_event_actions">
+                                        <button type="button" class="myevents_action_btn myevents_action_toggle"
+                                                data-target="participants-@evId"
+                                                onclick="toggleParticipants(this)">
+                                            <span class="myevents_toggle_label">View participants</span>
+                                            <i class="fa fa-chevron-down myevents_chevron"></i>
+                                        </button>
+                                    </div>
+
+                                    <div class="myevents_participants" id="participants-@evId">
+                                        <div class="myevents_participants_head">
+                                            <span class="myevents_participants_title">Participants</span>
+                                            <span class="myevents_participants_count">@evEnrolments.Count total</span>
+                                        </div>
+
+                                        @if (evEnrolments.Count == 0)
+                                        {
+                                            <div class="myevents_participants_empty">
+                                                <i class="fa fa-users"></i>
+                                                <span>No one has enrolled in this event yet.</span>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="myevents_table_wrap">
+                                                <table class="myevents_table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>#</th>
+                                                            <th>Participant</th>
+                                                            <th>Email</th>
+                                                            <th>Enrolled</th>
+                                                            <th>Status</th>
+                                                            <th>Time</th>
+                                                            <th>Pos.</th>
+                                                            <th></th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @{
+                                                            int rowIndex = 1;
+                                                        }
+                                                        @foreach (var en in evEnrolments)
+                                                        {
+                                                            int enrolmentId = Convert.ToInt32(en["enrolmentID"]);
+                                                            string fullname = en["fullname"]?.ToString() ?? "";
+                                                            string email = en["email"]?.ToString() ?? "";
+                                                            string enrolledOn = Convert.ToDateTime(en["enrolmentDate"]).ToString("dd MMM yyyy");
+                                                            bool hasResult = en["resultID"] != DBNull.Value;
+                                                            int resultId = hasResult ? Convert.ToInt32(en["resultID"]) : 0;
+                                                            string finishTime = hasResult && en["finishTime"] != DBNull.Value ? ((TimeSpan)en["finishTime"]).ToString(@"hh\:mm\:ss") : "";
+                                                            int finishPosition = hasResult && en["finishPosition"] != DBNull.Value ? Convert.ToInt32(en["finishPosition"]) : 0;
+
+                                                            <tr>
+                                                                <td data-label="#" class="myevents_id_cell">@rowIndex</td>
+                                                                <td data-label="Participant">
+                                                                    <div class="myevents_name_cell">
+                                                                        <span class="myevents_name_icon"><i class="fa fa-user"></i></span>
+                                                                        <span>@fullname</span>
+                                                                    </div>
+                                                                </td>
+                                                                <td data-label="Email">@email</td>
+                                                                <td data-label="Enrolled">@enrolledOn</td>
+                                                                <td data-label="Status">
+                                                                    @if (hasResult)
+                                                                    {
+                                                                        <span class="myevents_badge myevents_badge_finished"><i class="fa fa-check-circle"></i> Finished</span>
+                                                                    }
+                                                                    else
+                                                                    {
+                                                                        <span class="myevents_badge myevents_badge_pending"><i class="fa fa-clock-o"></i> Pending</span>
+                                                                    }
+                                                                </td>
+                                                                <td data-label="Time">@(hasResult ? finishTime : "—")</td>
+                                                                <td data-label="Position">@(hasResult ? finishPosition.ToString() : "—")</td>
+                                                                <td data-label="Actions">
+                                                                    <div class="myevents_row_actions">
+                                                                        @if (!hasResult)
+                                                                        {
+                                                                            <button type="button" class="myevents_action_btn myevents_action_record myevents_action_btn_sm"
+                                                                                    title="Record result"
+                                                                                    data-enrolment-id="@enrolmentId"
+                                                                                    data-event-id="@evId"
+                                                                                    data-name="@fullname"
+                                                                                    onclick="openRecordModal(this)">
+                                                                                <i class="fa fa-plus"></i>
+                                                                            </button>
+                                                                        }
+                                                                        else
+                                                                        {
+                                                                            <button type="button" class="myevents_action_btn myevents_action_edit myevents_action_btn_sm"
+                                                                                    title="Update result"
+                                                                                    data-result-id="@resultId"
+                                                                                    data-event-id="@evId"
+                                                                                    data-name="@fullname"
+                                                                                    data-time="@finishTime"
+                                                                                    data-position="@finishPosition"
+                                                                                    onclick="openUpdateModal(this)">
+                                                                                <i class="fa fa-pencil"></i>
+                                                                            </button>
+                                                                            <button type="button" class="myevents_action_btn myevents_action_delete myevents_action_btn_sm"
+                                                                                    title="Delete result"
+                                                                                    data-result-id="@resultId"
+                                                                                    data-event-id="@evId"
+                                                                                    data-name="@fullname"
+                                                                                    onclick="openDeleteModal(this)">
+                                                                                <i class="fa fa-trash"></i>
+                                                                            </button>
+                                                                        }
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                            rowIndex++;
+                                                        }
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </section>
+            }
+        }
+
+    </div>
+
+    <div class="myevents_modal" id="recordResultModal">
+        <div class="myevents_modal_box">
+            <button type="button" class="myevents_modal_close" onclick="closeRecordModal()" aria-label="Close">
+                <i class="fa fa-times"></i>
+            </button>
+
+            <h3 class="myevents_modal_title">Record result</h3>
+            <p class="myevents_modal_text">Enter the finish time and position for <strong id="recordParticipantName">this participant</strong>.</p>
+
+            <form method="post">
+                <input type="hidden" name="formAction" value="record">
+                <input type="hidden" name="enrolmentId" id="recordEnrolmentId" value="0">
+
+                <div class="myevents_field">
+                    <label class="myevents_label">Finish time (HH:MM:SS)</label>
+                    <input class="myevents_input" type="time" name="finishTime" step="1" required>
+                </div>
+
+                <div class="myevents_field">
+                    <label class="myevents_label">Finish position</label>
+                    <input class="myevents_input" type="number" name="finishPosition" min="1" required>
+                </div>
+
+                <div class="myevents_modal_actions">
+                    <button type="button" class="myevents_modal_btn myevents_modal_btn_light" onclick="closeRecordModal()">Cancel</button>
+                    <button type="submit" class="myevents_modal_btn myevents_modal_btn_primary">
+                        <i class="fa fa-check"></i> Save
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="myevents_modal" id="updateResultModal">
+        <div class="myevents_modal_box">
+            <button type="button" class="myevents_modal_close" onclick="closeUpdateModal()" aria-label="Close">
+                <i class="fa fa-times"></i>
+            </button>
+
+            <h3 class="myevents_modal_title">Update result</h3>
+            <p class="myevents_modal_text">Change the finish time or position for <strong id="updateParticipantName">this participant</strong>.</p>
+
+            <form method="post">
+                <input type="hidden" name="formAction" value="update">
+                <input type="hidden" name="resultId" id="updateResultId" value="0">
+
+                <div class="myevents_field">
+                    <label class="myevents_label">Finish time (HH:MM:SS)</label>
+                    <input class="myevents_input" type="time" name="finishTime" id="updateFinishTime" step="1" required>
+                </div>
+
+                <div class="myevents_field">
+                    <label class="myevents_label">Finish position</label>
+                    <input class="myevents_input" type="number" name="finishPosition" id="updateFinishPosition" min="1" required>
+                </div>
+
+                <div class="myevents_modal_actions">
+                    <button type="button" class="myevents_modal_btn myevents_modal_btn_light" onclick="closeUpdateModal()">Cancel</button>
+                    <button type="submit" class="myevents_modal_btn myevents_modal_btn_primary">
+                        <i class="fa fa-check"></i> Save changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="myevents_modal" id="deleteResultModal">
+        <div class="myevents_modal_box">
+            <button type="button" class="myevents_modal_close" onclick="closeDeleteModal()" aria-label="Close">
+                <i class="fa fa-times"></i>
+            </button>
+
+            <h3 class="myevents_modal_title">Delete result</h3>
+            <p class="myevents_modal_text">Are you sure you want to delete the result for <strong id="deleteParticipantName">this participant</strong>? This cannot be undone.</p>
+
+            <form method="post">
+                <input type="hidden" name="formAction" value="delete">
+                <input type="hidden" name="resultId" id="deleteResultId" value="0">
+
+                <div class="myevents_modal_actions">
+                    <button type="button" class="myevents_modal_btn myevents_modal_btn_light" onclick="closeDeleteModal()">Cancel</button>
+                    <button type="submit" class="myevents_modal_btn myevents_modal_btn_danger">
+                        <i class="fa fa-trash"></i> Delete
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+            (function () {
+                window.toggleParticipants = function (btn) {
+                    const targetId = btn.getAttribute('data-target');
+                    const panel = document.getElementById(targetId);
+                    const label = btn.querySelector('.myevents_toggle_label');
+                    const isOpen = panel.classList.contains('myevents_participants_open');
+
+                    if (isOpen) {
+                        panel.classList.remove('myevents_participants_open');
+                        btn.classList.remove('myevents_action_toggle_active');
+                        label.textContent = 'View participants';
+                    } else {
+                        panel.classList.add('myevents_participants_open');
+                        btn.classList.add('myevents_action_toggle_active');
+                        label.textContent = 'Hide participants';
+                    }
+                };
+
+                const recordModal = document.getElementById('recordResultModal');
+                const updateModal = document.getElementById('updateResultModal');
+                const deleteModal = document.getElementById('deleteResultModal');
+
+                window.openRecordModal = function (btn) {
+                    document.getElementById('recordEnrolmentId').value = btn.getAttribute('data-enrolment-id');
+                    document.getElementById('recordParticipantName').textContent = btn.getAttribute('data-name');
+                    recordModal.classList.add('myevents_modal_open');
+                };
+                window.closeRecordModal = function () { recordModal.classList.remove('myevents_modal_open'); };
+
+                window.openUpdateModal = function (btn) {
+                    document.getElementById('updateResultId').value = btn.getAttribute('data-result-id');
+                    document.getElementById('updateParticipantName').textContent = btn.getAttribute('data-name');
+                    document.getElementById('updateFinishTime').value = btn.getAttribute('data-time') || '';
+                    document.getElementById('updateFinishPosition').value = btn.getAttribute('data-position') || '';
+                    updateModal.classList.add('myevents_modal_open');
+                };
+                window.closeUpdateModal = function () { updateModal.classList.remove('myevents_modal_open'); };
+
+                window.openDeleteModal = function (btn) {
+                    document.getElementById('deleteResultId').value = btn.getAttribute('data-result-id');
+                    document.getElementById('deleteParticipantName').textContent = btn.getAttribute('data-name');
+                    deleteModal.classList.add('myevents_modal_open');
+                };
+                window.closeDeleteModal = function () { deleteModal.classList.remove('myevents_modal_open'); };
+
+                [recordModal, updateModal, deleteModal].forEach(function (modal) {
+                    modal.addEventListener('click', function (e) {
+                        if (e.target === modal) modal.classList.remove('myevents_modal_open');
+                    });
+                });
+
+                document.addEventListener('keydown', function (e) {
+                    if (e.key === 'Escape') {
+                        recordModal.classList.remove('myevents_modal_open');
+                        updateModal.classList.remove('myevents_modal_open');
+                        deleteModal.classList.remove('myevents_modal_open');
+                    }
+                });
+            })();
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,361 @@
+﻿@using System.Data.SqlClient
+@using API_template.backend
+
+@{
+    Layout = null;
+    var userName = Context.Session.GetString("user_name") ?? "User";
+    var userId = Context.Session.GetString("user_id") ?? "0";
+    int participant_id = Int32.Parse(userId);
+
+    manage_join_events join_manager = new manage_join_events();
+
+    var enrolments = new List<Dictionary<string, object>>();
+    var myResults = new List<Dictionary<string, object>>();
+
+    SqlDataReader read_enrolments = join_manager.view_my_enrolmentsSite(participant_id);
+
+    try
+    {
+        while (read_enrolments.Read())
+        {
+            enrolments.Add(new Dictionary<string, object>
+            {
+                { "enrolmentID", read_enrolments["enrolmentID"] },
+                { "enrolmentDate", read_enrolments["enrolmentDate"] },
+                { "eventID", read_enrolments["eventID"] },
+                { "eventName", read_enrolments["eventName"] },
+                { "date", read_enrolments["date"] },
+                { "location", read_enrolments["location"] },
+                { "eventType", read_enrolments["eventType"] },
+                { "image", read_enrolments["image"] }
+            });
+        }
+    }
+    finally
+    {
+        read_enrolments.Close();
+    }
+
+    SqlDataReader read_results = join_manager.view_my_resultsSite(participant_id);
+
+    try
+    {
+        while (read_results.Read())
+        {
+            myResults.Add(new Dictionary<string, object>
+            {
+                { "resultID", read_results["resultID"] },
+                { "eventName", read_results["eventName"] },
+                { "date", read_results["date"] },
+                { "finishTime", read_results["finishTime"] },
+                { "finishPosition", read_results["finishPosition"] }
+            });
+        }
+    }
+    finally
+    {
+        read_results.Close();
+    }
+
+    var successMsg = TempData["CancelSuccess"] as string;
+    var errorMsg = TempData["CancelError"] as string;
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+
+    <div class="joined">
+
+        <div class="joined_head">
+            <p class="joined_hello">Your marathons</p>
+            <h1 class="joined_title">My joined marathons</h1>
+            <p class="joined_subtitle">Every marathon you've enrolled in, with the option to cancel if you change your mind.</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(successMsg))
+        {
+            <div class="joined_alert joined_alert_success">
+                <i class="fa fa-check-circle"></i>
+                <span>@successMsg</span>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(errorMsg))
+        {
+            <div class="joined_alert joined_alert_error">
+                <i class="fa fa-exclamation-circle"></i>
+                <span>@errorMsg</span>
+            </div>
+        }
+
+        <div class="joined_bar">
+            <div class="joined_bar_left">
+                <span class="joined_bar_count">@enrolments.Count</span>
+                <span class="joined_bar_label">marathon@(enrolments.Count == 1 ? "" : "s") joined</span>
+            </div>
+            
+        </div>
+
+        @if (enrolments.Count == 0)
+        {
+            <div class="joined_empty">
+                <i class="fa fa-flag-checkered"></i>
+                <p class="joined_empty_title">No marathons joined yet</p>
+                <p class="joined_empty_text">Browse open marathons and join one to see it here.</p>
+            </div>
+        }
+        else
+        {
+            <div class="joined_table_wrap">
+                <table class="joined_table">
+                    <thead>
+                        <tr>
+                            <th>Marathon</th>
+                            <th>Date</th>
+                            <th>Location</th>
+                            <th>Enrolled on</th>
+                            <th>Status</th>
+                            <th>Result</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{
+                            int rowNum = 0;
+                            var placeholderImages = new[]
+                            {
+                                "https://images.unsplash.com/photo-1552674605-db6ffd4facb5?auto=format&fit=crop&w=200&q=80",
+                                "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=200&q=80",
+                                "https://images.unsplash.com/photo-1571008887538-b36bb32f4571?auto=format&fit=crop&w=200&q=80",
+                                "https://images.unsplash.com/photo-1517963879433-6ad2b056d712?auto=format&fit=crop&w=200&q=80"
+                            };
+                        }
+
+                        @foreach (var e in enrolments)
+                        {
+                            rowNum++;
+                            int enrolmentId = Convert.ToInt32(e["enrolmentID"]);
+                            string eventName = e["eventName"].ToString();
+
+                            string img = e["image"] as string;
+                            string imgSrc = string.IsNullOrEmpty(img) ? placeholderImages[rowNum % placeholderImages.Length] : img;
+
+                            var evResult = myResults.FirstOrDefault(r => r["eventName"].ToString() == eventName);
+                            bool hasResult = evResult != null;
+
+                            <tr>
+                                <td data-label="Marathon">
+                                    <div class="joined_event_cell">
+                                        <div class="joined_event_image">
+                                            <img src="@imgSrc" alt="@eventName" onerror="this.onerror=null;this.src='@placeholderImages[0]';">
+                                        </div>
+                                        <div class="joined_event_text">
+                                            <span class="joined_event_name">@eventName</span>
+                                            <span class="joined_event_type">@e["eventType"]</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td data-label="Date">@Convert.ToDateTime(e["date"]).ToString("dd MMM yyyy")</td>
+                                <td data-label="Location">@e["location"]</td>
+                                <td data-label="Enrolled on">@Convert.ToDateTime(e["enrolmentDate"]).ToString("dd MMM yyyy")</td>
+                                <td data-label="Status">
+                                    @if (hasResult)
+                                    {
+                                        <span class="joined_status joined_status_finished">
+                                            <i class="fa fa-flag-checkered"></i> Finished
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="joined_status joined_status_enrolled">
+                                            <i class="fa fa-check-circle"></i> Enrolled
+                                        </span>
+                                    }
+                                </td>
+                                <td data-label="Result" class="joined_result_cell">
+                                    @if (hasResult)
+                                    {
+                                        <span class="joined_result_time">
+                                            <i class="fa fa-clock-o"></i> @(((TimeSpan)evResult["finishTime"]).ToString(@"hh\:mm\:ss"))
+                                        </span>
+                                        <span class="joined_result_pos">@evResult["finishPosition"]</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="joined_result_empty">Not yet</span>
+                                    }
+                                </td>
+                                <td data-label="Actions">
+                                    <div class="joined_actions">
+                                        <button type="button"
+                                                class="joined_action_btn joined_action_view"
+                                                data-name="@eventName"
+                                                data-date="@Convert.ToDateTime(e["date"]).ToString("dd MMM yyyy")"
+                                                data-location="@e["location"]"
+                                                data-type="@e["eventType"]"
+                                                data-enrolled="@Convert.ToDateTime(e["enrolmentDate"]).ToString("dd MMM yyyy")"
+                                                data-image="@imgSrc"
+                                                data-has-result="@(hasResult ? "1" : "0")"
+                                                data-finish-time="@(hasResult ? ((TimeSpan)evResult["finishTime"]).ToString(@"hh\:mm\:ss") : "")"
+                                                data-finish-position="@(hasResult ? evResult["finishPosition"].ToString() : "")"
+                                                onclick="openNewsModal(this)"
+                                                title="View details">
+                                            <i class="fa fa-eye"></i>
+                                        </button>
+
+                                        @if (!hasResult)
+                                        {
+                                            <button type="button"
+                                                    class="joined_action_btn joined_action_cancel"
+                                                    data-enrolment-id="@enrolmentId"
+                                                    data-event-name="@eventName"
+                                                    onclick="openCancelModal(this)"
+                                                    title="Cancel enrolment">
+                                                <i class="fa fa-trash"></i>
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+    </div>
+
+    <div class="joined_modal" id="newsModal">
+        <div class="joined_modal_box">
+            <button type="button" class="joined_modal_close" onclick="closeNewsModal()" aria-label="Close">
+                <i class="fa fa-times"></i>
+            </button>
+
+            <div class="news_modal">
+                <div class="news_modal_image">
+                    <img id="newsImage" src="" alt="Marathon image" class="news_modal_img">
+                </div>
+
+                <div class="news_modal_body">
+                    <span class="news_modal_badge" id="newsType">Marathon</span>
+                    <h2 class="news_modal_title" id="newsTitle">Marathon name</h2>
+
+                    <div class="news_modal_meta">
+                        <span class="news_modal_meta_item"><i class="fa fa-calendar"></i> <span id="newsDate">-</span></span>
+                        <span class="news_modal_meta_item"><i class="fa fa-map-marker"></i> <span id="newsLocation">-</span></span>
+                        <span class="news_modal_meta_item"><i class="fa fa-check-circle"></i> Enrolled <span id="newsEnrolled">-</span></span>
+                    </div>
+
+                    <div class="news_modal_result" id="newsResultBlock" style="display: none;">
+                        <div class="news_modal_result_item">
+                            <span class="news_modal_result_label">Finish time</span>
+                            <span class="news_modal_result_value" id="newsFinishTime">-</span>
+                        </div>
+                        <div class="news_modal_result_item">
+                            <span class="news_modal_result_label">Finish position</span>
+                            <span class="news_modal_result_value" id="newsFinishPosition">-</span>
+                        </div>
+                    </div>
+
+                    <div class="news_modal_noresult" id="newsNoResult">
+                        <i class="fa fa-clock-o"></i>
+                        <span>No result recorded yet. The organizer will add your finish time after the race.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="joined_modal" id="cancelModal">
+        <div class="confirm_modal_box">
+            <button type="button" class="joined_modal_close" onclick="closeCancelModal()" aria-label="Close">
+                <i class="fa fa-times"></i>
+            </button>
+
+            <div class="confirm_modal_icon">
+                <i class="fa fa-trash"></i>
+            </div>
+            <h3 class="confirm_modal_title">Cancel enrolment?</h3>
+            <p class="confirm_modal_text">You are about to cancel your enrolment in <strong id="cancelEventName">this marathon</strong>. This cannot be undone.</p>
+
+            <form method="post" action="/Home/CancelEnrolment">
+                <input type="hidden" name="enrolmentId" id="cancelEnrolmentId" value="0">
+
+                <div class="confirm_modal_actions">
+                    <button type="button" class="confirm_modal_btn confirm_modal_btn_light" onclick="closeCancelModal()">Keep</button>
+                    <button type="submit" class="confirm_modal_btn confirm_modal_btn_dark">
+                        <i class="fa fa-trash"></i> Cancel enrolment
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+            (function () {
+                const newsModal = document.getElementById('newsModal');
+                const cancelModal = document.getElementById('cancelModal');
+
+                window.openNewsModal = function (btn) {
+                    document.getElementById('newsImage').src = btn.getAttribute('data-image') || '';
+                    document.getElementById('newsType').textContent = btn.getAttribute('data-type') || 'Marathon';
+                    document.getElementById('newsTitle').textContent = btn.getAttribute('data-name') || '';
+                    document.getElementById('newsDate').textContent = btn.getAttribute('data-date') || '-';
+                    document.getElementById('newsLocation').textContent = btn.getAttribute('data-location') || '-';
+                    document.getElementById('newsEnrolled').textContent = btn.getAttribute('data-enrolled') || '-';
+
+                    const hasResult = btn.getAttribute('data-has-result') === '1';
+                    const resultBlock = document.getElementById('newsResultBlock');
+                    const noResultBlock = document.getElementById('newsNoResult');
+
+                    if (hasResult) {
+                        document.getElementById('newsFinishTime').textContent = btn.getAttribute('data-finish-time') || '-';
+                        document.getElementById('newsFinishPosition').textContent = '#' + btn.getAttribute('data-finish-position');
+                        resultBlock.style.display = 'flex';
+                        noResultBlock.style.display = 'none';
+                    } else {
+                        resultBlock.style.display = 'none';
+                        noResultBlock.style.display = 'flex';
+                    }
+
+                    newsModal.classList.add('joined_modal_open');
+                };
+
+                window.closeNewsModal = function () {
+                    newsModal.classList.remove('joined_modal_open');
+                };
+
+                window.openCancelModal = function (btn) {
+                    document.getElementById('cancelEnrolmentId').value = btn.getAttribute('data-enrolment-id');
+                    document.getElementById('cancelEventName').textContent = btn.getAttribute('data-event-name');
+                    cancelModal.classList.add('joined_modal_open');
+                };
+
+                window.closeCancelModal = function () {
+                    cancelModal.classList.remove('joined_modal_open');
+                };
+
+                [newsModal, cancelModal].forEach(function (modal) {
+                    modal.addEventListener('click', function (e) {
+                        if (e.target === modal) modal.classList.remove('joined_modal_open');
+                    });
+                });
+
+                document.addEventListener('keydown', function (e) {
+                    if (e.key === 'Escape') {
+                        closeNewsModal();
+                        closeCancelModal();
+                    }
+                });
+            })();
+    </script>
+
+</body>
+</html>

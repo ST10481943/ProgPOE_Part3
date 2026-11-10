@@ -1,0 +1,346 @@
+﻿@using System.Data.SqlClient
+@using API_template.backend
+
+@{
+    Layout = null;
+    var userName = Context.Session.GetString("user_name") ?? "User";
+    var userRole = Context.Session.GetString("user_role") ?? "Participant";
+    var userId = Context.Session.GetString("user_id") ?? "0";
+    var isOrganizer = userRole == "Organizer";
+
+    int participant_id = Int32.Parse(userId);
+
+    manage_join_events join_manager = new manage_join_events();
+    manage_events events_manager = new manage_events();
+    manage_categories categories_manager = new manage_categories();
+    manage_results results_manager = new manage_results();
+
+    var enrolments = new List<Dictionary<string, object>>();
+    var myEvents = new List<Dictionary<string, object>>();
+    var myCategories = new List<Dictionary<string, object>>();
+    var myResults = new List<Dictionary<string, object>>();
+
+    int totalParticipants = 0;
+    var eventParticipants = new Dictionary<int, int>();
+
+    if (isOrganizer)
+    {
+        SqlDataReader read_events = events_manager.view_eventsSite(participant_id);
+
+        try
+        {
+            while (read_events.Read())
+            {
+                myEvents.Add(new Dictionary<string, object>
+                {
+                    { "eventID", read_events["eventID"] },
+                    { "eventName", read_events["eventName"] },
+                    { "description", read_events["description"] },
+                    { "date", read_events["date"] },
+                    { "location", read_events["location"] },
+                    { "distance", read_events["distance"] },
+                    { "eventType", read_events["eventType"] },
+                    { "age", read_events["age"] },
+                    { "startTime", read_events["startTime"] },
+                    { "category_id", read_events["category_id"] },
+                    { "user_id", read_events["user_id"] },
+                    { "image", read_events["image"] }
+                });
+            }
+        }
+        finally { read_events.Close(); }
+
+        SqlDataReader read_categories = categories_manager.view_categoriesSite(participant_id);
+
+        try
+        {
+            while (read_categories.Read())
+            {
+                myCategories.Add(new Dictionary<string, object>
+                {
+                    { "id", read_categories["id"] },
+                    { "name", read_categories["name"] },
+                    { "description", read_categories["description"] },
+                    { "organizer_id", read_categories["organizer_id"] }
+                });
+            }
+        }
+        finally { read_categories.Close(); }
+
+        foreach (var ev in myEvents)
+        {
+            int evId = Convert.ToInt32(ev["eventID"]);
+            int countForEvent = 0;
+
+            SqlDataReader read_enrolments = results_manager.view_enrolments_by_eventSite(evId, participant_id);
+
+            try
+            {
+                while (read_enrolments.Read())
+                {
+                    countForEvent++;
+                }
+            }
+            finally { read_enrolments.Close(); }
+
+            eventParticipants[evId] = countForEvent;
+            totalParticipants += countForEvent;
+        }
+    }
+    else
+    {
+        SqlDataReader read_enrolments = join_manager.view_my_enrolmentsSite(participant_id);
+
+        try
+        {
+            while (read_enrolments.Read())
+            {
+                enrolments.Add(new Dictionary<string, object>
+                {
+                    { "enrolmentID", read_enrolments["enrolmentID"] },
+                    { "enrolmentDate", read_enrolments["enrolmentDate"] },
+                    { "eventID", read_enrolments["eventID"] },
+                    { "eventName", read_enrolments["eventName"] },
+                    { "date", read_enrolments["date"] },
+                    { "location", read_enrolments["location"] },
+                    { "eventType", read_enrolments["eventType"] },
+                    { "image", read_enrolments["image"] }
+                });
+            }
+        }
+        finally { read_enrolments.Close(); }
+
+        SqlDataReader read_results = join_manager.view_my_resultsSite(participant_id);
+
+        try
+        {
+            while (read_results.Read())
+            {
+                myResults.Add(new Dictionary<string, object>
+                {
+                    { "resultID", read_results["resultID"] },
+                    { "eventName", read_results["eventName"] },
+                    { "date", read_results["date"] },
+                    { "finishTime", read_results["finishTime"] },
+                    { "finishPosition", read_results["finishPosition"] }
+                });
+            }
+        }
+        finally { read_results.Close(); }
+    }
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+
+    <div class="overview">
+
+        <div class="overview_head">
+            <p class="overview_hello">Welcome back</p>
+            <h1 class="overview_title">Hi, @userName</h1>
+            <p class="overview_subtitle">
+                @if (isOrganizer)
+                {
+                    <span>Here's what's happening with your marathons.</span>
+                }
+                else
+                {
+                    <span>Here's what you're taking part in.</span>
+                }
+            </p>
+        </div>
+
+        @if (isOrganizer)
+        {
+            <div class="overview_grid">
+                <div class="overview_card">
+                    <div class="overview_card_top">
+                        <span class="overview_card_icon"><i class="fa fa-flag"></i></span>
+                        <span class="overview_card_label">Marathons</span>
+                    </div>
+                    <p class="overview_card_value">@myEvents.Count</p>
+                </div>
+
+                <div class="overview_card">
+                    <div class="overview_card_top">
+                        <span class="overview_card_icon"><i class="fa fa-users"></i></span>
+                        <span class="overview_card_label">Participants</span>
+                    </div>
+                    <p class="overview_card_value">@totalParticipants</p>
+                </div>
+
+                <div class="overview_card">
+                    <div class="overview_card_top">
+                        <span class="overview_card_icon"><i class="fa fa-tags"></i></span>
+                        <span class="overview_card_label">Categories</span>
+                    </div>
+                    <p class="overview_card_value">@myCategories.Count</p>
+                </div>
+
+                <div class="overview_card">
+                    <div class="overview_card_top">
+                        <span class="overview_card_icon"><i class="fa fa-calendar"></i></span>
+                        <span class="overview_card_label">Upcoming</span>
+                    </div>
+                    <p class="overview_card_value">@myEvents.Count(e => Convert.ToDateTime(e["date"]) >= DateTime.Today)</p>
+                </div>
+            </div>
+
+            <section class="overview_section">
+                <div class="overview_section_head">
+                    <h2 class="overview_section_title">Your marathons</h2>
+                   
+                </div>
+
+                @if (myEvents.Count == 0)
+                {
+                    <div class="overview_empty">
+                        <i class="fa fa-flag"></i>
+                        <p class="overview_empty_title">No marathons yet</p>
+                        <p class="overview_empty_text">Create your first marathon to get started.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="overview_items">
+                        @{
+                            int evIndex = 0;
+                            var evImages = new[]
+                            {
+                                "https://images.unsplash.com/photo-1552674605-db6ffd4facb5?auto=format&fit=crop&w=200&q=80",
+                                "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=200&q=80",
+                                "https://images.unsplash.com/photo-1571008887538-b36bb32f4571?auto=format&fit=crop&w=200&q=80",
+                                "https://images.unsplash.com/photo-1517963879433-6ad2b056d712?auto=format&fit=crop&w=200&q=80"
+                            };
+                        }
+
+                        @foreach (var e in myEvents)
+                        {
+                            int evId = Convert.ToInt32(e["eventID"]);
+                            int joinedCount = eventParticipants.ContainsKey(evId) ? eventParticipants[evId] : 0;
+                            string img = e["image"] as string;
+                            string imgSrc = string.IsNullOrEmpty(img) ? evImages[evIndex % evImages.Length] : img;
+                            evIndex++;
+
+                            <article class="overview_item">
+                                <div class="overview_item_image">
+                                    <img src="@imgSrc" alt="@e["eventName"]">
+                                </div>
+                                <div class="overview_item_body">
+                                    <h3 class="overview_item_title">@e["eventName"]</h3>
+                                    <p class="overview_item_meta">
+                                        <i class="fa fa-calendar"></i> @Convert.ToDateTime(e["date"]).ToString("dd MMM yyyy")
+                                        <span class="overview_item_sep">|</span>
+                                        <i class="fa fa-users"></i> @joinedCount joined
+                                    </p>
+                                </div>
+                            </article>
+                        }
+                    </div>
+                }
+            </section>
+
+           
+        }
+        else
+        {
+            <div class="overview_grid">
+                <div class="overview_card">
+                    <div class="overview_card_top">
+                        <span class="overview_card_icon"><i class="fa fa-flag-checkered"></i></span>
+                        <span class="overview_card_label">Joined</span>
+                    </div>
+                    <p class="overview_card_value">@enrolments.Count</p>
+                </div>
+
+                <div class="overview_card">
+                    <div class="overview_card_top">
+                        <span class="overview_card_icon"><i class="fa fa-calendar"></i></span>
+                        <span class="overview_card_label">Upcoming</span>
+                    </div>
+                    <p class="overview_card_value">@enrolments.Count(e => Convert.ToDateTime(e["date"]) >= DateTime.Today)</p>
+                </div>
+
+                <div class="overview_card">
+                    <div class="overview_card_top">
+                        <span class="overview_card_icon"><i class="fa fa-trophy"></i></span>
+                        <span class="overview_card_label">Results</span>
+                    </div>
+                    <p class="overview_card_value">@myResults.Count</p>
+                </div>
+
+
+            </div>
+
+            <section class="overview_section">
+                <div class="overview_section_head">
+                    <h2 class="overview_section_title">Your marathons</h2>
+                    <a class="overview_section_link" href="#" onclick="parent.navigate('/Home/MyJoinedEvents', 'My Marathons'); return false;">
+                        View all <i class="fa fa-arrow-right"></i>
+                    </a>
+                </div>
+
+                @if (enrolments.Count == 0)
+                {
+                    <div class="overview_empty">
+                        <i class="fa fa-calendar"></i>
+                        <p class="overview_empty_title">No marathons joined yet</p>
+                        <p class="overview_empty_text">Browse open marathons and join one to get started.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="overview_items">
+                        @{
+                            int cardIndex = 0;
+                            var cardImages = new[]
+                            {
+                                "https://images.unsplash.com/photo-1552674605-db6ffd4facb5?auto=format&fit=crop&w=200&q=80",
+                                "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=200&q=80",
+                                "https://images.unsplash.com/photo-1571008887538-b36bb32f4571?auto=format&fit=crop&w=200&q=80",
+                                "https://images.unsplash.com/photo-1517963879433-6ad2b056d712?auto=format&fit=crop&w=200&q=80"
+                            };
+                        }
+
+                        @foreach (var e in enrolments)
+                        {
+                            string img = e["image"] as string;
+                            string imgSrc = string.IsNullOrEmpty(img) ? cardImages[cardIndex % cardImages.Length] : img;
+                            cardIndex++;
+
+                            <article class="overview_item">
+                                <div class="overview_item_image">
+                                    <img src="@imgSrc" alt="@e["eventName"]">
+                                </div>
+                                <div class="overview_item_body">
+                                    <h3 class="overview_item_title">@e["eventName"]</h3>
+                                    <p class="overview_item_meta">
+                                        <i class="fa fa-calendar"></i> @Convert.ToDateTime(e["date"]).ToString("dd MMM yyyy")
+                                        <span class="overview_item_sep">|</span>
+                                        <i class="fa fa-map-marker"></i> @e["location"]
+                                    </p>
+                                </div>
+                                <span class="overview_item_badge overview_item_badge_success">
+                                    <i class="fa fa-check"></i> Joined
+                                </span>
+                            </article>
+                        }
+                    </div>
+                }
+            </section>
+
+          
+           
+        }
+
+    </div>
+
+</body>
+</html>

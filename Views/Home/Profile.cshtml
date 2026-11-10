@@ -1,0 +1,209 @@
+﻿@using API_template.backend
+
+@{
+    Layout = null;
+    var userId = Context.Session.GetString("user_id") ?? "";
+    var userName = Context.Session.GetString("user_name") ?? "User";
+    var userEmail = Context.Session.GetString("user_email") ?? "Not set";
+    var userRole = Context.Session.GetString("user_role") ?? "User";
+
+    string successMsg = "";
+    string errorMsg = "";
+
+    if (Context.Request.Method == "POST")
+    {
+        string newName = Context.Request.Form["profileFullName"].ToString().Trim();
+        string newEmail = Context.Request.Form["profileEmail"].ToString().Trim();
+
+        if (string.IsNullOrEmpty(newName) || string.IsNullOrEmpty(newEmail))
+        {
+            errorMsg = "Both fields are required.";
+        }
+        else if (!newEmail.Contains("@") || !newEmail.Contains("."))
+        {
+            errorMsg = "Please enter a valid email address.";
+        }
+        else
+        {
+            profile_info profile_manager = new profile_info();
+            string result = profile_manager.update_info(newName, newEmail, "both", Context);
+
+            if (result.StartsWith("success"))
+            {
+                successMsg = "Profile updated successfully.";
+            }
+            else
+            {
+                errorMsg = result;
+            }
+        }
+    }
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+
+    <div class="profile">
+
+        <div class="profile_head">
+            <p class="profile_hello">Your account</p>
+            <h1 class="profile_title">@userName</h1>
+            <p class="profile_subtitle">Manage the details tied to your account.</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(successMsg))
+        {
+            <div class="profile_alert profile_alert_success">
+                <i class="fa fa-check-circle"></i>
+                <span>@successMsg</span>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(errorMsg))
+        {
+            <div class="profile_alert profile_alert_error">
+                <i class="fa fa-exclamation-circle"></i>
+                <span>@errorMsg</span>
+            </div>
+        }
+
+        <div class="profile_grid">
+
+            <div class="profile_card">
+                <div class="profile_card_head">
+                    <h2 class="profile_card_title">Account details</h2>
+                    <p class="profile_card_text">Your current information on the platform.</p>
+                </div>
+
+                <ul class="profile_list">
+                    <li class="profile_item">
+                        <span class="profile_item_icon"><i class="fa fa-user"></i></span>
+                        <div class="profile_item_body">
+                            <p class="profile_item_label">Full name</p>
+                            <p class="profile_item_value">@userName</p>
+                        </div>
+                    </li>
+
+                    <li class="profile_item">
+                        <span class="profile_item_icon"><i class="fa fa-envelope"></i></span>
+                        <div class="profile_item_body">
+                            <p class="profile_item_label">Email address</p>
+                            <p class="profile_item_value">@userEmail</p>
+                        </div>
+                    </li>
+
+                    <li class="profile_item">
+                        <span class="profile_item_icon"><i class="fa fa-id-badge"></i></span>
+                        <div class="profile_item_body">
+                            <p class="profile_item_label">Role</p>
+                            <p class="profile_item_value">
+                                <span class="profile_badge">@userRole</span>
+                            </p>
+                        </div>
+                    </li>
+
+                    <li class="profile_item">
+                        <span class="profile_item_icon"><i class="fa fa-users"></i></span>
+                        <div class="profile_item_body">
+                            <p class="profile_item_label">UAccount</p>
+                            <p class="profile_item_value">Not shared</p>
+                        </div>
+                    </li>
+                </ul>
+
+                <div class="profile_actions">
+                    <button type="button" class="profile_btn" id="openUpdateModal">
+                        <i class="fa fa-pencil"></i>
+                        <span>Update details</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="profile_side">
+                <div class="profile_side_card">
+                    <div class="profile_side_icon">
+                        <i class="fa fa-shield"></i>
+                    </div>
+                    <h3 class="profile_side_title">Your details are safe</h3>
+                    <p class="profile_side_text">
+                        Only you can see and change the details on this page.
+                        Your email is used for sign-in and event updates only.
+                    </p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="profile_modal" id="updateDetailsModal">
+        <div class="profile_modal_box">
+            <button type="button" class="profile_modal_close" id="closeUpdateModal" aria-label="Close">
+                <i class="fa fa-times"></i>
+            </button>
+
+            <div class="profile_modal_head">
+                <h3 class="profile_modal_title">Update details</h3>
+                <p class="profile_modal_text">Change your name or email address.</p>
+            </div>
+
+            <form method="post" action="/Home/Profile">
+                <div class="profile_field">
+                    <label class="profile_label" for="profileFullName">Full name</label>
+                    <input class="profile_input" id="profileFullName" name="profileFullName" type="text" value="@userName" required maxlength="100">
+                </div>
+
+                <div class="profile_field">
+                    <label class="profile_label" for="profileEmail">Email</label>
+                    <input class="profile_input" id="profileEmail" name="profileEmail" type="email" value="@userEmail" required maxlength="150">
+                </div>
+
+                <div class="profile_modal_actions">
+                    <button type="button" class="profile_modal_btn profile_modal_btn_light" id="cancelUpdateModal">Cancel</button>
+                    <button type="submit" class="profile_modal_btn profile_modal_btn_dark">
+                        <i class="fa fa-check"></i> Save changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+            (function () {
+                const modal = document.getElementById('updateDetailsModal');
+                const openBtn = document.getElementById('openUpdateModal');
+                const closeBtn = document.getElementById('closeUpdateModal');
+                const cancelBtn = document.getElementById('cancelUpdateModal');
+
+                function openModal() {
+                    modal.classList.add('profile_modal_open');
+                }
+
+                function closeModal() {
+                    modal.classList.remove('profile_modal_open');
+                }
+
+                openBtn.addEventListener('click', openModal);
+                closeBtn.addEventListener('click', closeModal);
+                cancelBtn.addEventListener('click', closeModal);
+
+                modal.addEventListener('click', function (e) {
+                    if (e.target === modal) closeModal();
+                });
+
+                document.addEventListener('keydown', function (e) {
+                    if (e.key === 'Escape' && modal.classList.contains('profile_modal_open')) {
+                        closeModal();
+                    }
+                });
+            })();
+    </script>
+
+</body>
+</html>

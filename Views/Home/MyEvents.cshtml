@@ -1,0 +1,568 @@
+﻿@using System.Data.SqlClient
+@using API_template.backend
+
+@{
+    Layout = null;
+    var userName = Context.Session.GetString("user_name") ?? "User";
+    var userId = Context.Session.GetString("user_id") ?? "0";
+    int organizer_id = Int32.Parse(userId);
+
+    string successMsg = TempData["EventSuccess"] as string;
+    string errorMsg = TempData["EventError"] as string;
+
+    manage_events events_manager = new manage_events();
+    manage_categories categories_manager = new manage_categories();
+
+    if (Context.Request.Method == "POST")
+    {
+        string action = Context.Request.Form["formAction"].ToString().Trim();
+
+        if (action == "edit")
+        {
+            string eventIdRaw = Context.Request.Form["eventId"].ToString().Trim();
+            string eventName = Context.Request.Form["eventName"].ToString().Trim();
+            string eventType = Context.Request.Form["eventType"].ToString().Trim();
+            string description = Context.Request.Form["description"].ToString().Trim();
+            string dateRaw = Context.Request.Form["date"].ToString().Trim();
+            string startTimeRaw = Context.Request.Form["startTime"].ToString().Trim();
+            string location = Context.Request.Form["location"].ToString().Trim();
+            string distanceRaw = Context.Request.Form["distance"].ToString().Trim();
+            string ageRaw = Context.Request.Form["age"].ToString().Trim();
+            string categoryIdRaw = Context.Request.Form["categoryId"].ToString().Trim();
+            string existingImage = Context.Request.Form["existingImage"].ToString().Trim();
+
+            int eventId;
+            DateTime eventDate;
+            TimeSpan startTime;
+            decimal distance;
+            int age;
+            int categoryId;
+
+            if (!int.TryParse(eventIdRaw, out eventId) || eventId <= 0)
+            {
+                errorMsg = "Invalid marathon selected.";
+            }
+            else if (string.IsNullOrEmpty(eventName) || string.IsNullOrEmpty(eventType) || string.IsNullOrEmpty(location))
+            {
+                errorMsg = "Name, type and location are required.";
+            }
+            else if (!DateTime.TryParse(dateRaw, out eventDate))
+            {
+                errorMsg = "Please enter a valid date.";
+            }
+            else if (!TimeSpan.TryParse(startTimeRaw, out startTime))
+            {
+                errorMsg = "Please enter a valid start time.";
+            }
+            else if (!decimal.TryParse(distanceRaw, out distance) || distance <= 0 || distance > 999.99m)
+            {
+                errorMsg = "Please enter a valid distance.";
+            }
+            else if (!int.TryParse(ageRaw, out age) || age < 0 || age > 120)
+            {
+                errorMsg = "Please enter a valid minimum age.";
+            }
+            else if (!int.TryParse(categoryIdRaw, out categoryId) || categoryId <= 0)
+            {
+                errorMsg = "Please select a category.";
+            }
+            else
+            {
+                string imagePath = existingImage;
+
+                var imageFile = Context.Request.Form.Files["imageFile"];
+                if (imageFile != null && imageFile.Length > 0)
+                {
+                    string uploadsFolder = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "wwwroot", "uploads");
+                    if (!System.IO.Directory.Exists(uploadsFolder))
+                    {
+                        System.IO.Directory.CreateDirectory(uploadsFolder);
+                    }
+
+                    string uniqueName = Guid.NewGuid().ToString() + System.IO.Path.GetExtension(imageFile.FileName);
+                    string fullPath = System.IO.Path.Combine(uploadsFolder, uniqueName);
+
+                    using (var stream = new System.IO.FileStream(fullPath, System.IO.FileMode.Create))
+                    {
+                        imageFile.CopyTo(stream);
+                    }
+
+                    imagePath = "/uploads/" + uniqueName;
+                }
+
+                string result = events_manager.update_event(
+                    eventId,
+                    eventName,
+                    description,
+                    eventDate,
+                    location,
+                    distance,
+                    eventType,
+                    age,
+                    startTime,
+                    categoryId,
+                    organizer_id,
+                    imagePath);
+
+                if (result.StartsWith("Event"))
+                {
+                    TempData["EventSuccess"] = result;
+                }
+                else
+                {
+                    TempData["EventError"] = result;
+                }
+
+                Context.Response.Redirect(Context.Request.Path);
+                return;
+            }
+        }
+        else if (action == "delete")
+        {
+            string eventIdRaw = Context.Request.Form["eventId"].ToString().Trim();
+            int eventId;
+
+            if (!int.TryParse(eventIdRaw, out eventId) || eventId <= 0)
+            {
+                errorMsg = "Invalid marathon selected.";
+            }
+            else
+            {
+                string result = events_manager.delete_event(eventId, organizer_id);
+
+                if (result.StartsWith("Event"))
+                {
+                    TempData["EventSuccess"] = result;
+                }
+                else
+                {
+                    TempData["EventError"] = result;
+                }
+
+                Context.Response.Redirect(Context.Request.Path);
+                return;
+            }
+        }
+    }
+
+    var myEvents = new List<Dictionary<string, object>>();
+
+    SqlDataReader read_events = events_manager.view_eventsSite(organizer_id);
+
+    try
+    {
+        while (read_events.Read())
+        {
+            myEvents.Add(new Dictionary<string, object>
+            {
+                { "eventID", read_events["eventID"] },
+                { "eventName", read_events["eventName"] },
+                { "description", read_events["description"] },
+                { "date", read_events["date"] },
+                { "location", read_events["location"] },
+                { "distance", read_events["distance"] },
+                { "eventType", read_events["eventType"] },
+                { "age", read_events["age"] },
+                { "startTime", read_events["startTime"] },
+                { "category_id", read_events["category_id"] },
+                { "user_id", read_events["user_id"] },
+                { "image", read_events["image"] }
+            });
+        }
+    }
+    finally
+    {
+        read_events.Close();
+    }
+
+    var myCategories = new List<Dictionary<string, object>>();
+
+    SqlDataReader read_categories = categories_manager.view_categoriesSite(organizer_id);
+
+    try
+    {
+        while (read_categories.Read())
+        {
+            myCategories.Add(new Dictionary<string, object>
+            {
+                { "id", read_categories["id"] },
+                { "name", read_categories["name"] }
+            });
+        }
+    }
+    finally
+    {
+        read_categories.Close();
+    }
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body>
+
+    <div class="myevents">
+
+        <div class="myevents_head">
+            <p class="myevents_hello">Your marathons</p>
+            <h1 class="myevents_title">My marathons</h1>
+            <p class="myevents_subtitle">All your categories and the marathons inside them, on one page.</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(successMsg))
+        {
+            <div class="myevents_alert myevents_alert_success">
+                <i class="fa fa-check-circle"></i>
+                <span>@successMsg</span>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(errorMsg))
+        {
+            <div class="myevents_alert myevents_alert_error">
+                <i class="fa fa-exclamation-circle"></i>
+                <span>@errorMsg</span>
+            </div>
+        }
+
+        @if (myCategories.Count == 0)
+        {
+            <div class="myevents_empty">
+                <i class="fa fa-tags"></i>
+                <p class="myevents_empty_title">No categories yet</p>
+                <p class="myevents_empty_text">Create a category before creating marathons.</p>
+            </div>
+        }
+        else
+        {
+            @foreach (var c in myCategories)
+            {
+                int catId = Convert.ToInt32(c["id"]);
+                string catName = c["name"]?.ToString() ?? "";
+                var catEvents = myEvents.Where(e => Convert.ToInt32(e["category_id"]) == catId).ToList();
+
+                <section class="myevents_section" data-section-id="@catId">
+                    <div class="myevents_section_head">
+                        <div class="myevents_section_title_group">
+                            <span class="myevents_section_icon"><i class="fa fa-tags"></i></span>
+                            <div>
+                                <h2 class="myevents_section_title">@catName</h2>
+                                <p class="myevents_section_count">@catEvents.Count marathon@(catEvents.Count == 1 ? "" : "s")</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (catEvents.Count == 0)
+                    {
+                        <div class="myevents_section_empty">
+                            <i class="fa fa-flag"></i>
+                            <span>No marathons in this category yet.</span>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="myevents_section_list">
+                            @foreach (var ev in catEvents)
+                            {
+                                int evId = Convert.ToInt32(ev["eventID"]);
+                                string evName = ev["eventName"]?.ToString() ?? "";
+                                string evDescription = ev["description"]?.ToString() ?? "";
+                                string evDateDisplay = Convert.ToDateTime(ev["date"]).ToString("dd MMM yyyy");
+                                string evDateValue = Convert.ToDateTime(ev["date"]).ToString("yyyy-MM-dd");
+                                string evTime = ((TimeSpan)ev["startTime"]).ToString(@"hh\:mm");
+                                string evLocation = ev["location"]?.ToString() ?? "";
+                                string evDistance = ev["distance"]?.ToString() ?? "";
+                                string evType = ev["eventType"]?.ToString() ?? "";
+                                string evAge = ev["age"]?.ToString() ?? "";
+                                string evImage = ev["image"]?.ToString() ?? "";
+                                int evJoined = events_manager.count_participants(evId);
+
+                                <div class="myevents_row"
+                                     data-id="@evId"
+                                     data-name="@evName"
+                                     data-description="@evDescription"
+                                     data-date-display="@evDateDisplay"
+                                     data-date-value="@evDateValue"
+                                     data-time="@evTime"
+                                     data-location="@evLocation"
+                                     data-distance="@evDistance"
+                                     data-type="@evType"
+                                     data-age="@evAge"
+                                     data-category="@catId"
+                                     data-image="@evImage"
+                                     data-joined="@evJoined">
+
+                                    <div class="myevents_row_image">
+                                        <img class="myevents_row_img"
+                                             src="@evImage"
+                                             alt="@evName"
+                                             onerror="this.onerror=null;this.src='https://images.unsplash.com/photo-1552674605-db6ffd4facb5?auto=format&fit=crop&w=800&q=80';">
+                                    </div>
+
+                                    <div class="myevents_row_main">
+                                        <div class="myevents_row_top">
+                                            <span class="myevents_row_type">@evType</span>
+                                            <h3 class="myevents_row_name">@evName</h3>
+                                        </div>
+
+                                        <div class="myevents_row_meta">
+                                            <span class="myevents_row_meta_item"><i class="fa fa-calendar"></i> @evDateDisplay</span>
+                                            <span class="myevents_row_meta_item"><i class="fa fa-clock-o"></i> @evTime</span>
+                                            <span class="myevents_row_meta_item"><i class="fa fa-map-marker"></i> @evLocation</span>
+                                            <span class="myevents_row_meta_item"><i class="fa fa-road"></i> @evDistance km</span>
+                                            <span class="myevents_row_meta_item"><i class="fa fa-users"></i> @evJoined joined</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="myevents_row_actions">
+                                        <button type="button" class="myevents_action_btn myevents_action_view" onclick="openViewModal(this)" title="View">
+                                            <i class="fa fa-eye"></i>
+                                        </button>
+                                        <button type="button" class="myevents_action_btn myevents_action_edit" onclick="openEditModal(this)" title="Edit">
+                                            <i class="fa fa-pencil"></i>
+                                        </button>
+                                        <button type="button" class="myevents_action_btn myevents_action_delete" onclick="openDeleteModal(this)" title="Delete">
+                                            <i class="fa fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </section>
+            }
+        }
+
+    </div>
+
+    <div class="myevents_modal" id="viewEventModal">
+        <div class="myevents_modal_box">
+            <button type="button" class="myevents_modal_close" onclick="closeViewModal()" aria-label="Close">
+                <i class="fa fa-times"></i>
+            </button>
+
+            <div class="myevents_news">
+                <div class="myevents_news_image">
+                    <img id="viewEventImage" src="" alt="Marathon image" class="myevents_news_img">
+                </div>
+
+                <div class="myevents_news_body">
+                    <span class="myevents_news_badge" id="viewEventType">Marathon</span>
+                    <h2 class="myevents_news_title" id="viewEventTitle">Marathon name</h2>
+
+                    <div class="myevents_news_meta">
+                        <span class="myevents_news_meta_item"><i class="fa fa-calendar"></i> <span id="viewEventDate">-</span></span>
+                        <span class="myevents_news_meta_item"><i class="fa fa-clock-o"></i> <span id="viewEventTime">-</span></span>
+                        <span class="myevents_news_meta_item"><i class="fa fa-map-marker"></i> <span id="viewEventLocation">-</span></span>
+                        <span class="myevents_news_meta_item"><i class="fa fa-road"></i> <span id="viewEventDistance">-</span></span>
+                        <span class="myevents_news_meta_item"><i class="fa fa-users"></i> <span id="viewEventAge">-</span></span>
+                    </div>
+
+                    <p class="myevents_news_text" id="viewEventDescription">Marathon description.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="myevents_modal" id="editEventModal">
+        <div class="myevents_modal_box" style="max-width: 680px;">
+            <button type="button" class="myevents_modal_close" onclick="closeEditModal()" aria-label="Close">
+                <i class="fa fa-times"></i>
+            </button>
+
+            <div class="myevents_news_body">
+                <h2 class="myevents_news_title" style="font-size: 1.4rem; margin-bottom: 0.5rem;">Edit marathon</h2>
+                <p class="myevents_modal_text">Update the marathon details. All fields marked * are required.</p>
+
+                <form method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="formAction" value="edit">
+                    <input type="hidden" name="eventId" id="editEventId" value="0">
+                    <input type="hidden" name="existingImage" id="editExistingImage" value="">
+
+                    <div class="myevents_edit_row">
+                        <div class="myevents_edit_field">
+                            <label class="myevents_edit_label">Marathon name *</label>
+                            <input class="myevents_edit_input" type="text" name="eventName" id="editEventName" maxlength="60" required>
+                        </div>
+                        <div class="myevents_edit_field">
+                            <label class="myevents_edit_label">Marathon type *</label>
+                            <input class="myevents_edit_input" type="text" name="eventType" id="editEventType" maxlength="60" required>
+                        </div>
+                    </div>
+
+                    <div class="myevents_edit_field">
+                        <label class="myevents_edit_label">Description</label>
+                        <textarea class="myevents_edit_input myevents_edit_textarea" name="description" id="editDescription" maxlength="255"></textarea>
+                    </div>
+
+                    <div class="myevents_edit_row">
+                        <div class="myevents_edit_field">
+                            <label class="myevents_edit_label">Marathon date *</label>
+                            <input class="myevents_edit_input" type="date" name="date" id="editDate" required>
+                        </div>
+                        <div class="myevents_edit_field">
+                            <label class="myevents_edit_label">Start time *</label>
+                            <input class="myevents_edit_input" type="time" name="startTime" id="editStartTime" required>
+                        </div>
+                    </div>
+
+                    <div class="myevents_edit_field">
+                        <label class="myevents_edit_label">Location *</label>
+                        <input class="myevents_edit_input" type="text" name="location" id="editLocation" maxlength="70" required>
+                    </div>
+
+                    <div class="myevents_edit_row">
+                        <div class="myevents_edit_field">
+                            <label class="myevents_edit_label">Distance (km) *</label>
+                            <input class="myevents_edit_input" type="number" step="0.01" min="0.01" max="999.99" name="distance" id="editDistance" required>
+                        </div>
+                        <div class="myevents_edit_field">
+                            <label class="myevents_edit_label">Minimum age *</label>
+                            <input class="myevents_edit_input" type="number" min="0" max="120" name="age" id="editAge" required>
+                        </div>
+                    </div>
+
+                    <div class="myevents_edit_field">
+                        <label class="myevents_edit_label">Category *</label>
+                        <select class="myevents_edit_input myevents_edit_select" name="categoryId" id="editCategoryId" required>
+                            <option value="">Select a category</option>
+                            @foreach (var c in myCategories)
+                            {
+                                <option value="@c["id"]">@c["name"]</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="myevents_edit_field">
+                        <label class="myevents_edit_label">New image (optional)</label>
+                        <input class="myevents_edit_input" type="file" name="imageFile" accept="image/*">
+                    </div>
+
+                    <div class="myevents_edit_actions">
+                        <button type="button" onclick="closeEditModal()" class="myevents_edit_btn myevents_edit_btn_light">Cancel</button>
+                        <button type="submit" class="myevents_edit_btn myevents_edit_btn_primary">
+                            <i class="fa fa-check"></i> Save changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="myevents_modal" id="deleteEventModal">
+        <div class="myevents_modal_box myevents_modal_box_small">
+            <button type="button" class="myevents_modal_close" onclick="closeDeleteModal()" aria-label="Close">
+                <i class="fa fa-times"></i>
+            </button>
+
+            <div class="myevents_confirm">
+                <div class="myevents_confirm_icon">
+                    <i class="fa fa-trash"></i>
+                </div>
+                <h3 class="myevents_confirm_title">Delete this marathon?</h3>
+                <p class="myevents_confirm_text">
+                    You are about to delete <strong id="deleteEventName">this marathon</strong>. This action cannot be undone.
+                </p>
+
+                <form method="post">
+                    <input type="hidden" name="formAction" value="delete">
+                    <input type="hidden" name="eventId" id="deleteEventId" value="0">
+                    <div class="myevents_confirm_actions">
+                        <button type="button" onclick="closeDeleteModal()" class="myevents_confirm_btn myevents_confirm_btn_light">Cancel</button>
+                        <button type="submit" class="myevents_confirm_btn myevents_confirm_btn_dark">
+                            <i class="fa fa-trash"></i> Delete
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+            (function () {
+                const viewModal = document.getElementById('viewEventModal');
+                const editModal = document.getElementById('editEventModal');
+                const deleteModal = document.getElementById('deleteEventModal');
+
+                function getRowData(btn) {
+                    return btn.closest('.myevents_row');
+                }
+
+                window.openViewModal = function (btn) {
+                    const row = getRowData(btn);
+                    document.getElementById('viewEventImage').src = row.getAttribute('data-image') || '';
+                    document.getElementById('viewEventType').textContent = row.getAttribute('data-type') || 'Marathon';
+                    document.getElementById('viewEventTitle').textContent = row.getAttribute('data-name') || '';
+                    document.getElementById('viewEventDate').textContent = row.getAttribute('data-date-display') || '-';
+                    document.getElementById('viewEventTime').textContent = row.getAttribute('data-time') || '-';
+                    document.getElementById('viewEventLocation').textContent = row.getAttribute('data-location') || '-';
+                    document.getElementById('viewEventDistance').textContent = (row.getAttribute('data-distance') || '-') + ' km';
+                    document.getElementById('viewEventAge').textContent = (row.getAttribute('data-joined') || '0') + ' joined · min age ' + (row.getAttribute('data-age') || '-');
+                    document.getElementById('viewEventDescription').textContent = row.getAttribute('data-description') || 'No description.';
+                    viewModal.classList.add('myevents_modal_open');
+                };
+
+                window.closeViewModal = function () {
+                    viewModal.classList.remove('myevents_modal_open');
+                };
+
+                window.openEditModal = function (btn) {
+                    const row = getRowData(btn);
+                    document.getElementById('editEventId').value = row.getAttribute('data-id');
+                    document.getElementById('editExistingImage').value = row.getAttribute('data-image') || '';
+                    document.getElementById('editEventName').value = row.getAttribute('data-name') || '';
+                    document.getElementById('editEventType').value = row.getAttribute('data-type') || '';
+                    document.getElementById('editDescription').value = row.getAttribute('data-description') || '';
+                    document.getElementById('editDate').value = row.getAttribute('data-date-value') || '';
+                    document.getElementById('editStartTime').value = row.getAttribute('data-time') || '';
+                    document.getElementById('editLocation').value = row.getAttribute('data-location') || '';
+                    document.getElementById('editDistance').value = row.getAttribute('data-distance') || '';
+                    document.getElementById('editAge').value = row.getAttribute('data-age') || '';
+                    document.getElementById('editCategoryId').value = row.getAttribute('data-category') || '';
+                    editModal.classList.add('myevents_modal_open');
+                };
+
+                window.closeEditModal = function () {
+                    editModal.classList.remove('myevents_modal_open');
+                };
+
+                window.openDeleteModal = function (btn) {
+                    const row = getRowData(btn);
+                    document.getElementById('deleteEventId').value = row.getAttribute('data-id');
+                    document.getElementById('deleteEventName').textContent = row.getAttribute('data-name');
+                    deleteModal.classList.add('myevents_modal_open');
+                };
+
+                window.closeDeleteModal = function () {
+                    deleteModal.classList.remove('myevents_modal_open');
+                };
+
+                viewModal.addEventListener('click', function (e) {
+                    if (e.target === viewModal) closeViewModal();
+                });
+
+                editModal.addEventListener('click', function (e) {
+                    if (e.target === editModal) closeEditModal();
+                });
+
+                deleteModal.addEventListener('click', function (e) {
+                    if (e.target === deleteModal) closeDeleteModal();
+                });
+
+                document.addEventListener('keydown', function (e) {
+                    if (e.key === 'Escape') {
+                        closeViewModal();
+                        closeEditModal();
+                        closeDeleteModal();
+                    }
+                });
+            })();
+    </script>
+
+</body>
+</html>
